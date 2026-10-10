@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "ai_assistent",
-    "slug": "ai_assistent",
+    "name": "Veresa",
+    "slug": "veresa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,6 +10,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.aiassistant.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +21,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "llama.rn"
+    ]
   }
 }
