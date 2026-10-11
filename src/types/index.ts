@@ -2,11 +2,17 @@ export type LLMConfig = {
   id: string;
   name: string;
   tag: string;
+  tone?: string;
   filename: string;
-  sizeEst: string;
+  sizeEst?: string;
   sizeMB: number;
+  quant?: string;
+  ramHint?: string;
   description: string;
-  primaryUrl: string;
+  repos?: string[];
+  fileMatch?: RegExp;
+  fallbackFile?: string;
+  primaryUrl?: string;
   mirrorUrl?: string;
 };
 
@@ -35,7 +41,16 @@ export type Message = {
     tokensPerSec: number;
     totalTokens: number;
     durationSec: number;
+    firstVisibleMs?: number;
+    promptTokens?: number;
+    promptMs?: number;
+    thinkingTokens?: number;
+    hadThinking?: boolean;
   };
 };
 
 export type NavigationTab = 'assistant' | 'models' | 'settings';
+
+export type ParsedSegment =
+  | { type: 'text'; content: string }
+  | { type: 'code'; language: string; code: string };

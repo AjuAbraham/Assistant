@@ -1,35 +1,37 @@
 import React from 'react';
-import { Platform, StyleSheet, View, TextInput, TouchableOpacity, Text } from 'react-native';
-import { theme } from '../theme/tokens';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { THEME } from '../theme/tokens';
 
 interface ComposerProps {
   inputText: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
   onStop: () => void;
-  isGenerating: boolean;
   isModelReady: boolean;
+  isGenerating: boolean;
+  canSend: boolean;
+  isKeyboardVisible: boolean;
   onFocus?: () => void;
 }
 
-export const Composer: React.FC<ComposerProps> = ({
+export function Composer({
   inputText,
   onChangeText,
   onSend,
   onStop,
-  isGenerating,
   isModelReady,
+  isGenerating,
+  canSend,
+  isKeyboardVisible,
   onFocus,
-}) => {
-  const canSend = isModelReady && inputText.trim().length > 0 && !isGenerating;
-
+}: ComposerProps) {
   return (
-    <View style={styles.composerWrapper}>
-      <View style={styles.inputCard}>
+    <View style={[styles.composerContainer, isKeyboardVisible && styles.composerContainerKeyboard]}>
+      <View style={styles.composerCard}>
         <TextInput
-          style={styles.inputField}
+          style={styles.composerInput}
           placeholder={isModelReady ? 'Message Veresa' : 'Load a model to start chatting'}
-          placeholderTextColor={theme.colors.textTertiary}
+          placeholderTextColor={THEME.colors.textTertiary}
           value={inputText}
           onChangeText={onChangeText}
           editable={isModelReady}
@@ -42,19 +44,27 @@ export const Composer: React.FC<ComposerProps> = ({
           underlineColorAndroid="transparent"
         />
 
-        <View style={styles.buttonContainer}>
+        <View style={styles.composerButtonSlot}>
           {isGenerating ? (
-            <TouchableOpacity style={styles.stopButton} onPress={onStop} activeOpacity={0.8}>
-              <View style={styles.stopIcon} />
+            <TouchableOpacity style={styles.composerStopBtn} onPress={onStop} activeOpacity={0.8}>
+              <View style={styles.stopIconSquare} />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
+              style={[
+                styles.composerSendBtn,
+                canSend ? styles.composerSendBtnActive : styles.composerSendBtnDisabled,
+              ]}
               onPress={onSend}
               disabled={!canSend}
-              activeOpacity={0.8}
+              activeOpacity={0.75}
             >
-              <Text style={[styles.sendIcon, canSend ? styles.sendIconActive : styles.sendIconDisabled]}>
+              <Text
+                style={[
+                  styles.sendArrowText,
+                  canSend ? styles.sendArrowActive : styles.sendArrowDisabled,
+                ]}
+              >
                 ↑
               </Text>
             </TouchableOpacity>
@@ -63,33 +73,36 @@ export const Composer: React.FC<ComposerProps> = ({
       </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  composerWrapper: {
-    paddingHorizontal: theme.spacing.md,
+  composerContainer: {
+    paddingHorizontal: THEME.spacing.md,
     paddingTop: 8,
     paddingBottom: 10,
-    backgroundColor: theme.colors.bgApp,
+    backgroundColor: THEME.colors.bgApp,
   },
-  inputCard: {
+  composerContainerKeyboard: {
+    paddingBottom: Platform.OS === 'ios' ? 8 : 12,
+  },
+  composerCard: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: theme.colors.bgSurface,
+    backgroundColor: THEME.colors.bgSurface,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
+    borderColor: THEME.colors.borderStrong,
     paddingLeft: 16,
     paddingRight: 6,
     paddingVertical: 6,
     minHeight: 52,
     maxHeight: 160,
   },
-  inputField: {
+  composerInput: {
     flex: 1,
     minHeight: 40,
     maxHeight: 140,
-    color: theme.colors.textPrimary,
+    color: THEME.colors.textPrimary,
     fontSize: 16,
     lineHeight: 22,
     paddingTop: Platform.OS === 'android' ? 10 : 8,
@@ -97,40 +110,57 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     includeFontPadding: false,
   },
-  buttonContainer: {
+  composerButtonSlot: {
     paddingBottom: 2,
     paddingLeft: 4,
   },
-  sendButton: {
+  composerSendBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: theme.colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendButtonDisabled: {
+  composerSendBtnActive: {
+    backgroundColor: THEME.colors.accent,
+    shadowColor: THEME.colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  composerSendBtnDisabled: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  sendIcon: {
-    fontSize: 18,
+  sendArrowText: {
+    fontSize: 19,
     fontWeight: '900',
+    lineHeight: 21,
+    marginTop: -2,
+    textAlign: 'center',
   },
-  sendIconActive: {
-    color: theme.colors.bgApp,
+  sendArrowActive: {
+    color: '#080C14',
   },
-  sendIconDisabled: {
-    color: theme.colors.textDisabled,
+  sendArrowDisabled: {
+    color: 'rgba(255, 255, 255, 0.2)',
   },
-  stopButton: {
+  composerStopBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: theme.colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#EF4444',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    elevation: 4,
   },
-  stopIcon: {
+  stopIconSquare: {
     width: 12,
     height: 12,
     backgroundColor: '#FFFFFF',

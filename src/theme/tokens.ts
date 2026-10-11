@@ -1,11 +1,11 @@
-export const theme = {
+export const THEME = {
   colors: {
     bgApp: '#080C14',
     bgSurface: '#0E1626',
     bgCard: '#131E33',
     bgCardElevated: '#182744',
     bgCardHover: '#1D2F52',
-    
+
     borderSubtle: '#1E2C44',
     borderStrong: '#2B3E60',
     borderFocus: '#38BDF8',
@@ -21,16 +21,16 @@ export const theme = {
 
     userBubble: '#243B5A',
     userBubbleText: '#F8FAFC',
-    
+
     assistantBubble: 'transparent',
     assistantBubbleText: '#E8EEF6',
 
     success: '#4ADE80',
     successGlow: 'rgba(74, 222, 128, 0.15)',
-    
+
     danger: '#EF4444',
     dangerGlow: 'rgba(239, 68, 68, 0.15)',
-    
+
     warning: '#F59E0B',
     warningGlow: 'rgba(245, 158, 11, 0.15)',
   },
@@ -60,3 +60,5 @@ export const theme = {
     pill: { fontSize: 10, fontWeight: '700' as const },
   },
 };
+
+export const theme = THEME;

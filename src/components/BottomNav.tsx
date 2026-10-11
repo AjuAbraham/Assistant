@@ -1,51 +1,56 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { theme } from '../theme/tokens';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { THEME } from '../theme/tokens';
 import { NavigationTab } from '../types';
 
 interface BottomNavProps {
   activeTab: NavigationTab;
   onSelectTab: (tab: NavigationTab) => void;
+  downloadingCount: number;
   isModelReady: boolean;
-  downloadingCount?: number;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({
+export function BottomNav({
   activeTab,
   onSelectTab,
+  downloadingCount,
   isModelReady,
-  downloadingCount = 0,
-}) => {
-  const tabs: { id: NavigationTab; label: string; icon: string }[] = [
-    { id: 'assistant', label: 'Assistant', icon: '💬' },
-    { id: 'models', label: 'Models', icon: '🧠' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+}: BottomNavProps) {
+  const tabs = [
+    { id: 'assistant' as NavigationTab, label: 'Assistant', icon: '💬' },
+    { id: 'models' as NavigationTab, label: 'Models', icon: '🧠' },
+    { id: 'settings' as NavigationTab, label: 'Settings', icon: '⚙️' },
   ];
 
   return (
-    <View style={styles.navContainer}>
-      <View style={styles.tabsRow}>
+    <View style={styles.bottomNav}>
+      <View style={styles.navRow}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <TouchableOpacity
               key={tab.id}
-              style={[styles.tabButton, isActive && styles.tabButtonActive]}
+              style={[styles.navTabBtn, isActive && styles.navTabBtnActive]}
               onPress={() => onSelectTab(tab.id)}
               activeOpacity={0.7}
             >
-              <View style={styles.iconWrapper}>
-                <Text style={styles.tabIcon}>{tab.icon}</Text>
+              <View style={styles.navIconContainer}>
+                <Text style={styles.navIconText}>{tab.icon}</Text>
                 {tab.id === 'models' && downloadingCount > 0 && (
-                  <View style={styles.badgeDownload}>
-                    <Text style={styles.badgeDownloadText}>↓</Text>
+                  <View style={styles.navDownloadBadge}>
+                    <Text style={styles.navDownloadBadgeText}>↓</Text>
                   </View>
                 )}
                 {tab.id === 'assistant' && isModelReady && (
-                  <View style={styles.badgeReadyDot} />
+                  <View style={styles.navReadyDot} />
                 )}
               </View>
-              <Text style={[styles.tabLabel, isActive ? styles.tabLabelActive : styles.tabLabelInactive]}>
+              <Text
+                style={[
+                  styles.navLabelText,
+                  isActive ? styles.navLabelActive : styles.navLabelInactive,
+                ]}
+              >
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -54,72 +59,72 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  navContainer: {
-    backgroundColor: theme.colors.bgSurface,
+  bottomNav: {
+    backgroundColor: THEME.colors.bgSurface,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
-    paddingTop: theme.spacing.xs,
-    paddingBottom: theme.spacing.sm,
+    borderTopColor: THEME.colors.borderSubtle,
+    paddingTop: THEME.spacing.xs,
+    paddingBottom: THEME.spacing.sm,
   },
-  tabsRow: {
+  navRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: THEME.spacing.md,
   },
-  tabButton: {
+  navTabBtn: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 6,
-    borderRadius: theme.radii.md,
+    borderRadius: THEME.radii.md,
   },
-  tabButtonActive: {
+  navTabBtnActive: {
     backgroundColor: 'rgba(56, 189, 248, 0.08)',
   },
-  iconWrapper: {
+  navIconContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabIcon: {
+  navIconText: {
     fontSize: 18,
     marginBottom: 2,
   },
-  tabLabel: {
+  navLabelText: {
     fontSize: 11,
     fontWeight: '600',
   },
-  tabLabelActive: {
-    color: theme.colors.accent,
+  navLabelActive: {
+    color: THEME.colors.accent,
     fontWeight: '700',
   },
-  tabLabelInactive: {
-    color: theme.colors.textSecondary,
+  navLabelInactive: {
+    color: THEME.colors.textSecondary,
   },
-  badgeDownload: {
+  navDownloadBadge: {
     position: 'absolute',
     top: -2,
     right: -6,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: THEME.colors.accent,
     width: 14,
     height: 14,
     borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeDownloadText: {
-    color: theme.colors.bgApp,
+  navDownloadBadgeText: {
+    color: THEME.colors.bgApp,
     fontSize: 9,
     fontWeight: '900',
   },
-  badgeReadyDot: {
+  navReadyDot: {
     position: 'absolute',
     top: 0,
     right: -4,
-    backgroundColor: theme.colors.success,
+    backgroundColor: THEME.colors.success,
     width: 6,
     height: 6,
     borderRadius: 3,

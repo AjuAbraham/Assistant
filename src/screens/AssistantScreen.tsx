@@ -1,113 +1,122 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import {
-  StyleSheet,
-  Text,
   View,
-  ScrollView,
+  Text,
   TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  StyleSheet,
+  Platform,
 } from 'react-native';
-import { theme } from '../theme/tokens';
-import { Message, LLMConfig, ModelStatus } from '../types';
-import { Orb } from '../components/Orb';
+import { THEME } from '../theme/tokens';
+import { Message, ModelState } from '../types';
+import { STARTER_PROMPTS } from '../constants/models';
+import { AnimatedOrb } from '../components/common/AnimatedOrb';
+import { TypingDots } from '../components/common/TypingDots';
+import { MessageContentRenderer } from '../components/common/MessageContentRenderer';
 import { MessageItem } from '../components/MessageItem';
 import { Composer } from '../components/Composer';
 
 interface AssistantScreenProps {
-  messages: Message[];
-  selectedModel: LLMConfig;
-  modelStatus: ModelStatus;
   isModelReady: boolean;
-  isGenerating: boolean;
+  activeState: ModelState;
+  errorMsg: string | null;
+  messages: Message[];
   streamingText: string;
+  isGenerating: boolean;
   inputText: string;
   onChangeInputText: (text: string) => void;
   onSendMessage: (promptOverride?: string) => void;
   onStopGeneration: () => void;
-  onOpenModelsTab: () => void;
-  errorMsg: string | null;
+  canSend: boolean;
+  isKeyboardVisible: boolean;
+  expandedMetricsId: string | null;
+  onToggleMetrics: (id: string) => void;
+  copiedMessageId: string | null;
+  onCopyMessage: (id: string, content: string) => void;
+  onOpenModels: () => void;
+  scrollViewRef: React.RefObject<ScrollView>;
+  userScrolledUpRef: React.MutableRefObject<boolean>;
+  onScroll: (event: any) => void;
 }
 
-const STARTER_PROMPTS = [
-  { icon: '💡', title: 'Explain a Concept', prompt: 'Explain quantum computing in simple terms with an analogy.' },
-  { icon: '🐍', title: 'Write Python Code', prompt: 'Write a Python script that parses JSON from a file and formats it.' },
-  { icon: '🔒', title: 'Why Local AI?', prompt: 'What are the main advantages of running AI models locally on-device?' },
-  { icon: '✍️', title: 'Draft an Email', prompt: 'Help me draft a concise and polite follow-up email to a colleague.' },
-];
-
-export const AssistantScreen: React.FC<AssistantScreenProps> = ({
-  messages,
-  selectedModel,
-  modelStatus,
+export function AssistantScreen({
   isModelReady,
-  isGenerating,
+  activeState,
+  errorMsg,
+  messages,
   streamingText,
+  isGenerating,
   inputText,
   onChangeInputText,
   onSendMessage,
   onStopGeneration,
-  onOpenModelsTab,
-  errorMsg,
-}) => {
-  const scrollViewRef = useRef<ScrollView>(null);
-  const userScrolledUpRef = useRef<boolean>(false);
-
-  const handleScroll = (event: any) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const paddingToBottom = 80;
-    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-    userScrolledUpRef.current = !isAtBottom;
-  };
-
-  const handleFocus = () => {
-    userScrolledUpRef.current = false;
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 200);
-  };
-
+  canSend,
+  isKeyboardVisible,
+  expandedMetricsId,
+  onToggleMetrics,
+  copiedMessageId,
+  onCopyMessage,
+  onOpenModels,
+  scrollViewRef,
+  userScrolledUpRef,
+  onScroll,
+}: AssistantScreenProps) {
   return (
-    <View style={styles.screenContainer}>
-      {/* Offline Status / Model Alert (if model is not loaded) */}
+    <KeyboardAvoidingView
+      style={styles.tabContentContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+    >
+      {/* Banner Alert if no model loaded */}
       {!isModelReady && (
-        <TouchableOpacity style={styles.bannerAlert} onPress={onOpenModelsTab} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.bannerAlert} onPress={onOpenModels} activeOpacity={0.8}>
           <View style={styles.bannerAlertLeft}>
-            <Text style={styles.bannerAlertIcon}>
-              {modelStatus === 'downloaded' ? '⚡' : modelStatus === 'downloading' ? '📥' : '🧠'}
-            </Text>
-            <View>
+            <View style={styles.bannerAlertIconBadge}>
+              <Text style={styles.bannerAlertIcon}>
+                {activeState.status === 'downloaded'
+                  ? '⚡'
+                  : activeState.status === 'downloading'
+                  ? '📥'
+                  : '🧠'}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.bannerAlertTitle}>
-                {modelStatus === 'downloaded'
+                {activeState.status === 'downloaded'
                   ? 'Model downloaded. Tap to load into RAM.'
-                  : modelStatus === 'downloading'
-                  ? 'Downloading model in background...'
+                  : activeState.status === 'downloading'
+                  ? 'Downloading model weights in background...'
                   : 'No model loaded in RAM'}
               </Text>
-              <Text style={styles.bannerAlertSubtitle}>
-                {modelStatus === 'downloaded'
-                  ? 'Tap here to activate offline inference'
-                  : 'Tap to visit Model Library'}
+              <Text style={styles.bannerAlertSub}>
+                {activeState.status === 'downloaded'
+                  ? 'Activate model for instant offline responses'
+                  : 'Tap here to visit Model Library'}
               </Text>
             </View>
           </View>
-          <Text style={styles.bannerAlertArrow}>→</Text>
+          <View style={styles.bannerAlertArrowBadge}>
+            <Text style={styles.bannerAlertChevron}>›</Text>
+          </View>
         </TouchableOpacity>
       )}
 
-      {/* Error Banner */}
+      {/* Error Message */}
       {errorMsg && (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
         </View>
       )}
 
-      {/* Main Conversation Stream / Welcome Screen */}
+      {/* Scrollable Conversation Stream */}
       <ScrollView
         ref={scrollViewRef}
         style={styles.chatScroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.chatScrollContent}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets={true}
-        onScroll={handleScroll}
+        onScroll={onScroll}
         scrollEventThrottle={16}
         onContentSizeChange={() => {
           if (!userScrolledUpRef.current) {
@@ -115,22 +124,23 @@ export const AssistantScreen: React.FC<AssistantScreenProps> = ({
           }
         }}
       >
+        {/* First-time Welcome & Empty State */}
         {messages.length === 0 && !streamingText && (
           <View style={styles.welcomeContainer}>
-            <Orb isReady={isModelReady} />
+            <AnimatedOrb isReady={isModelReady} />
 
-            <Text style={styles.welcomeTitle}>Good day, I'm Veresa</Text>
+            <Text style={styles.welcomeTitle}>Hey Aju, I'm Veresa</Text>
             <Text style={styles.welcomeSubtitle}>
-              Your private, 100% offline assistant running directly on this phone.
+              Right here on this phone — private, offline, and just for you.
             </Text>
 
-            <View style={styles.privacyBadge}>
-              <Text style={styles.privacyBadgeText}>🔒 On-Device Processing • Zero Data Leaves Phone</Text>
+            <View style={styles.privacyPill}>
+              <Text style={styles.privacyPillText}>🔒 On-Device Inference • Zero Data Leaves Phone</Text>
             </View>
 
-            {/* Quick Starters Grid */}
+            {/* Starter Suggestions */}
             <Text style={styles.startersHeader}>Suggested Starters</Text>
-            <View style={styles.startersGrid}>
+            <View style={styles.startersList}>
               {STARTER_PROMPTS.map((item, index) => (
                 <TouchableOpacity
                   key={index}
@@ -139,12 +149,17 @@ export const AssistantScreen: React.FC<AssistantScreenProps> = ({
                   disabled={!isModelReady || isGenerating}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.starterIcon}>{item.icon}</Text>
+                  <View style={styles.starterIconBadge}>
+                    <Text style={styles.starterIcon}>{item.icon}</Text>
+                  </View>
                   <View style={styles.starterTextGroup}>
                     <Text style={styles.starterTitle}>{item.title}</Text>
                     <Text style={styles.starterPromptPreview} numberOfLines={2}>
                       "{item.prompt}"
                     </Text>
+                  </View>
+                  <View style={styles.starterArrowBadge}>
+                    <Text style={styles.starterArrowText}>↗</Text>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -152,214 +167,225 @@ export const AssistantScreen: React.FC<AssistantScreenProps> = ({
           </View>
         )}
 
-        {/* Message History */}
+        {/* Chat Message Bubbles */}
         {messages.map((m) => (
-          <MessageItem key={m.id} message={m} model={selectedModel} />
+          <MessageItem
+            key={m.id}
+            message={m}
+            isExpanded={expandedMetricsId === m.id}
+            copied={copiedMessageId === m.id}
+            onCopy={() => onCopyMessage(m.id, m.content)}
+            onToggleMetrics={() => onToggleMetrics(m.id)}
+          />
         ))}
 
         {isGenerating && (
-          <View style={styles.streamingBubbleWrapper}>
+          <View style={styles.streamingWrapper}>
             <View style={styles.streamingBubble}>
               {streamingText ? (
-                <Text style={styles.streamingContentText}>{streamingText}</Text>
+                <MessageContentRenderer content={streamingText} isUser={false} />
               ) : (
-                <Text style={styles.streamingContentText}>···</Text>
+                <TypingDots label="Thinking..." />
               )}
             </View>
           </View>
         )}
       </ScrollView>
 
-      {/* Anchored Message Composer */}
+      {/* Anchored Bottom Composer */}
       <Composer
         inputText={inputText}
         onChangeText={onChangeInputText}
         onSend={() => onSendMessage()}
         onStop={onStopGeneration}
-        isGenerating={isGenerating}
         isModelReady={isModelReady}
-        onFocus={handleFocus}
+        isGenerating={isGenerating}
+        canSend={canSend}
+        isKeyboardVisible={isKeyboardVisible}
+        onFocus={() => {
+          userScrolledUpRef.current = false;
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 120);
+        }}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  screenContainer: {
+  tabContentContainer: {
     flex: 1,
-    backgroundColor: theme.colors.bgApp,
   },
   bannerAlert: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    backgroundColor: THEME.colors.bgCard,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(56, 189, 248, 0.2)',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
+    borderBottomColor: THEME.colors.borderSubtle,
+    paddingHorizontal: THEME.spacing.lg,
+    paddingVertical: 10,
   },
   bannerAlertLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     flex: 1,
+    gap: 12,
+  },
+  bannerAlertIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bannerAlertIcon: {
-    fontSize: 16,
+    fontSize: 15,
   },
   bannerAlertTitle: {
-    color: theme.colors.accent,
-    fontSize: 12,
+    color: THEME.colors.textPrimary,
+    fontSize: 12.5,
     fontWeight: '700',
   },
-  bannerAlertSubtitle: {
-    color: theme.colors.textSecondary,
+  bannerAlertSub: {
+    color: THEME.colors.textSecondary,
     fontSize: 11,
     marginTop: 1,
   },
-  bannerAlertArrow: {
-    color: theme.colors.accent,
-    fontSize: 16,
-    fontWeight: '700',
+  bannerAlertArrowBadge: {
     paddingLeft: 8,
   },
+  bannerAlertChevron: {
+    color: THEME.colors.textSecondary,
+    fontSize: 18,
+    fontWeight: '300',
+  },
   errorBanner: {
-    backgroundColor: theme.colors.dangerGlow,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    padding: theme.spacing.sm,
-    marginHorizontal: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-    borderRadius: theme.radii.md,
+    backgroundColor: THEME.colors.dangerGlow,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(239, 68, 68, 0.3)',
+    paddingHorizontal: THEME.spacing.lg,
+    paddingVertical: 8,
   },
   errorText: {
-    color: '#FCA5A5',
+    color: THEME.colors.danger,
     fontSize: 12,
+    fontWeight: '600',
   },
   chatScroll: {
     flex: 1,
   },
-  scrollContent: {
-    paddingVertical: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+  chatScrollContent: {
+    paddingHorizontal: THEME.spacing.lg,
+    paddingTop: THEME.spacing.md,
+    paddingBottom: 24,
   },
   welcomeContainer: {
-    paddingHorizontal: theme.spacing.lg,
     alignItems: 'center',
-    paddingTop: theme.spacing.sm,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
   welcomeTitle: {
-    ...theme.typography.titleLarge,
-    textAlign: 'center',
-    marginBottom: 6,
+    fontSize: 20,
+    fontWeight: '800',
+    color: THEME.colors.textPrimary,
+    marginTop: 4,
+    marginBottom: 4,
   },
   welcomeSubtitle: {
-    ...theme.typography.bodySmall,
+    fontSize: 13,
+    color: THEME.colors.textSecondary,
     textAlign: 'center',
-    maxWidth: 280,
     lineHeight: 18,
-    marginBottom: 14,
+    maxWidth: 280,
   },
-  privacyBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  privacyPill: {
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: 'rgba(56, 189, 248, 0.2)',
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: theme.radii.full,
+    paddingVertical: 4,
+    borderRadius: THEME.radii.full,
+    marginTop: 14,
     marginBottom: 24,
   },
-  privacyBadgeText: {
-    color: theme.colors.textTertiary,
-    fontSize: 11,
-    fontWeight: '600',
+  privacyPillText: {
+    color: THEME.colors.accent,
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   startersHeader: {
-    ...theme.typography.sectionHeader,
     alignSelf: 'flex-start',
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.textSecondary,
+    letterSpacing: 1,
     marginBottom: 10,
-    paddingLeft: 4,
+    textTransform: 'uppercase',
   },
-  startersGrid: {
+  startersList: {
     width: '100%',
     gap: 8,
   },
   starterCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.bgCard,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    borderRadius: theme.radii.md,
+    backgroundColor: THEME.colors.bgCard,
+    borderRadius: THEME.radii.md,
     padding: 12,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
     gap: 12,
   },
   starterCardDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+  },
+  starterIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: THEME.colors.bgSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   starterIcon: {
-    fontSize: 20,
+    fontSize: 16,
   },
   starterTextGroup: {
     flex: 1,
   },
   starterTitle: {
-    color: theme.colors.textPrimary,
+    color: THEME.colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 2,
   },
   starterPromptPreview: {
-    color: theme.colors.textSecondary,
-    fontSize: 11.5,
-    lineHeight: 16,
+    color: THEME.colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
   },
-  streamingBubbleWrapper: {
-    marginVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
+  starterArrowBadge: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  starterArrowText: {
+    color: THEME.colors.accent,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  streamingWrapper: {
+    marginVertical: 4,
+    width: '100%',
   },
   streamingBubble: {
-    backgroundColor: theme.colors.assistantBubble,
-    borderWidth: 1,
-    borderColor: theme.colors.accent,
-    borderRadius: theme.radii.lg,
-    borderBottomLeftRadius: theme.radii.xs,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  streamingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  streamingTagGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  streamingRoleTag: {
-    color: theme.colors.accent,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  streamingStopBtn: {
-    backgroundColor: theme.colors.dangerGlow,
-    borderWidth: 1,
-    borderColor: theme.colors.danger,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: theme.radii.sm,
-  },
-  streamingStopBtnText: {
-    color: theme.colors.danger,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  streamingContentText: {
-    ...theme.typography.body,
-    color: theme.colors.assistantBubbleText,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
   },
 });
