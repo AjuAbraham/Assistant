@@ -35,7 +35,7 @@ interface AssistantScreenProps {
   copiedMessageId: string | null;
   onCopyMessage: (id: string, content: string) => void;
   onOpenModels: () => void;
-  scrollViewRef: React.RefObject<ScrollView>;
+  scrollViewRef: React.RefObject<ScrollView | null>;
   userScrolledUpRef: React.MutableRefObject<boolean>;
   onScroll: (event: any) => void;
 }

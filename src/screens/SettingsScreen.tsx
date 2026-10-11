@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity } from 'react-native';
-import { theme } from '../theme/tokens';
+import React from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { THEME } from '../theme/tokens';
+import { LLMConfig } from '../types';
 
 interface SettingsScreenProps {
   temperature: number;
@@ -8,12 +9,13 @@ interface SettingsScreenProps {
   maxTokens: number;
   onSetMaxTokens: (val: number) => void;
   systemPrompt: string;
-  onSetSystemPrompt: (prompt: string) => void;
+  onSetSystemPrompt: (val: string) => void;
   onResetSystemPrompt: () => void;
-  activeModelName?: string;
+  isModelReady: boolean;
+  selectedModel: LLMConfig;
 }
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+export function SettingsScreen({
   temperature,
   onSetTemperature,
   maxTokens,
@@ -21,26 +23,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   systemPrompt,
   onSetSystemPrompt,
   onResetSystemPrompt,
-  activeModelName,
-}) => {
-  const [isEditingPrompt, setIsEditingPrompt] = useState(false);
-
+  isModelReady,
+  selectedModel,
+}: SettingsScreenProps) {
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Section 1: Generation & Inference */}
-        <Text style={styles.sectionHeader}>INFERENCE PARAMETERS</Text>
-        <View style={styles.card}>
-          {/* Temperature Setting */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingTextRow}>
-              <Text style={styles.settingTitle}>Temperature</Text>
+    <View style={styles.tabContentContainer}>
+      <ScrollView contentContainerStyle={styles.settingsScrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionHeaderTitle}>INFERENCE PARAMETERS</Text>
+        <View style={styles.settingsCard}>
+          {/* Temperature */}
+          <View style={styles.settingRowItem}>
+            <View style={styles.settingLabelRow}>
+              <Text style={styles.settingLabelTitle}>Temperature</Text>
               <Text style={styles.settingCurrentVal}>{temperature}</Text>
             </View>
-            <Text style={styles.settingDesc}>
-              Controls creativity. Lower values are more factual and deterministic; higher values are more expressive.
+            <Text style={styles.settingDescText}>
+              Controls creativity. Lower values produce deterministic output; higher values allow expressive phrasing.
             </Text>
-            <View style={styles.optionsRow}>
+            <View style={styles.pillsRow}>
               {[
                 { val: 0.2, label: '0.2 (Precise)' },
                 { val: 0.7, label: '0.7 (Balanced)' },
@@ -48,11 +48,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               ].map((opt) => (
                 <TouchableOpacity
                   key={opt.val}
-                  style={[styles.optionPill, temperature === opt.val && styles.optionPillActive]}
+                  style={[styles.pillBtn, temperature === opt.val && styles.pillBtnActive]}
                   onPress={() => onSetTemperature(opt.val)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.optionText, temperature === opt.val && styles.optionTextActive]}>
+                  <Text
+                    style={[
+                      styles.pillBtnText,
+                      temperature === opt.val && styles.pillBtnTextActive,
+                    ]}
+                  >
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
@@ -60,16 +65,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.settingsDivider} />
 
-          {/* Max Tokens Setting */}
-          <View style={styles.settingItem}>
-            <View style={styles.settingTextRow}>
-              <Text style={styles.settingTitle}>Max Response Tokens</Text>
+          {/* Max Tokens */}
+          <View style={styles.settingRowItem}>
+            <View style={styles.settingLabelRow}>
+              <Text style={styles.settingLabelTitle}>Max Response Tokens</Text>
               <Text style={styles.settingCurrentVal}>{maxTokens}</Text>
             </View>
-            <Text style={styles.settingDesc}>Maximum token length limit generated per assistant reply.</Text>
-            <View style={styles.optionsRow}>
+            <Text style={styles.settingDescText}>Maximum output tokens generated per reply.</Text>
+            <View style={styles.pillsRow}>
               {[
                 { val: 256, label: '256 tokens' },
                 { val: 512, label: '512 tokens' },
@@ -78,11 +83,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               ].map((opt) => (
                 <TouchableOpacity
                   key={opt.val}
-                  style={[styles.optionPill, maxTokens === opt.val && styles.optionPillActive]}
+                  style={[styles.pillBtn, maxTokens === opt.val && styles.pillBtnActive]}
                   onPress={() => onSetMaxTokens(opt.val)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.optionText, maxTokens === opt.val && styles.optionTextActive]}>
+                  <Text
+                    style={[
+                      styles.pillBtnText,
+                      maxTokens === opt.val && styles.pillBtnTextActive,
+                    ]}
+                  >
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
@@ -91,13 +101,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </View>
         </View>
 
-        {/* Section 2: Assistant System Prompt */}
-        <Text style={styles.sectionHeader}>ASSISTANT PERSONALITY & SYSTEM PROMPT</Text>
-        <View style={styles.card}>
+        <Text style={styles.sectionHeaderTitle}>PERSONALITY & SYSTEM PROMPT</Text>
+        <View style={styles.settingsCard}>
           <View style={styles.promptHeaderRow}>
-            <Text style={styles.settingTitle}>System Prompt</Text>
+            <Text style={styles.settingLabelTitle}>System Instructions</Text>
             <TouchableOpacity onPress={onResetSystemPrompt} activeOpacity={0.7}>
-              <Text style={styles.resetLink}>Reset to Default</Text>
+              <Text style={styles.resetPromptLink}>Reset</Text>
             </TouchableOpacity>
           </View>
 
@@ -108,141 +117,141 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             multiline
             numberOfLines={4}
             placeholder="Enter system prompt instructions for Veresa..."
-            placeholderTextColor={theme.colors.textTertiary}
+            placeholderTextColor={THEME.colors.textTertiary}
           />
         </View>
 
-        {/* Section 3: Privacy & Architecture */}
-        <Text style={styles.sectionHeader}>PRIVACY & SECURITY</Text>
-        <View style={styles.card}>
+        <Text style={styles.sectionHeaderTitle}>PRIVACY & SYSTEM DIAGNOSTICS</Text>
+        <View style={styles.settingsCard}>
           <View style={styles.privacyRow}>
-            <Text style={styles.privacyIcon}>🔒</Text>
-            <View style={styles.privacyTextGroup}>
-              <Text style={styles.privacyTitle}>100% On-Device Local AI</Text>
-              <Text style={styles.privacyBody}>
-                All conversations and model weights live strictly on your device. Veresa sends zero prompts, transcripts, or telemetry to external servers.
+            <Text style={styles.privacyIconText}>🔒</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.privacyHeading}>100% On-Device Local AI</Text>
+              <Text style={styles.privacyBodyText}>
+                Conversations stay strictly on your phone. No telemetry, prompts, or audio ever leave your device.
               </Text>
             </View>
           </View>
-        </View>
 
-        {/* Section 4: System Information */}
-        <Text style={styles.sectionHeader}>ABOUT VERESA</Text>
-        <View style={styles.card}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>App Version</Text>
-            <Text style={styles.infoValue}>1.0.0 (Production Build)</Text>
+          <View style={styles.settingsDivider} />
+
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>App Version</Text>
+            <Text style={styles.diagVal}>1.0.0 (Production)</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Inference Runtime</Text>
-            <Text style={styles.infoValue}>llama.cpp (ARM64 v8a Native)</Text>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Inference Runtime</Text>
+            <Text style={styles.diagVal}>llama.cpp ARM64</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Active Model</Text>
-            <Text style={[styles.infoValue, activeModelName ? styles.textAccent : styles.textMuted]}>
-              {activeModelName || 'None loaded in RAM'}
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Active Model</Text>
+            <Text style={[styles.diagVal, isModelReady ? styles.valAccent : styles.valMuted]}>
+              {isModelReady ? selectedModel.name : 'None loaded in RAM'}
             </Text>
           </View>
         </View>
       </ScrollView>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
+  tabContentContainer: {
     flex: 1,
-    backgroundColor: theme.colors.bgApp,
   },
-  scrollContent: {
-    padding: theme.spacing.lg,
+  settingsScrollContent: {
+    padding: THEME.spacing.lg,
     paddingBottom: 40,
   },
-  sectionHeader: {
-    ...theme.typography.sectionHeader,
-    marginBottom: theme.spacing.sm,
+  sectionHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.textSecondary,
+    letterSpacing: 1,
+    marginBottom: THEME.spacing.sm,
     paddingLeft: 2,
   },
-  card: {
-    backgroundColor: theme.colors.bgCard,
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
+  settingsCard: {
+    backgroundColor: THEME.colors.bgCard,
+    borderRadius: THEME.radii.lg,
+    padding: THEME.spacing.lg,
+    marginBottom: THEME.spacing.xl,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: THEME.colors.borderSubtle,
   },
-  settingItem: {
+  settingRowItem: {
     gap: 8,
   },
-  settingTextRow: {
+  settingLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  settingTitle: {
-    ...theme.typography.titleMedium,
+  settingLabelTitle: {
     fontSize: 14,
+    fontWeight: '700',
+    color: THEME.colors.textPrimary,
   },
   settingCurrentVal: {
-    color: theme.colors.accent,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
+    color: THEME.colors.accent,
   },
-  settingDesc: {
-    ...theme.typography.bodySmall,
+  settingDescText: {
+    fontSize: 12,
+    color: THEME.colors.textSecondary,
+    lineHeight: 17,
   },
-  optionsRow: {
+  pillsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 4,
   },
-  optionPill: {
-    flex: 1,
-    backgroundColor: theme.colors.bgApp,
+  pillBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: THEME.radii.sm,
+    backgroundColor: THEME.colors.bgSurface,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    borderRadius: theme.radii.sm,
-    paddingVertical: 8,
-    alignItems: 'center',
+    borderColor: THEME.colors.borderSubtle,
   },
-  optionPillActive: {
+  pillBtnActive: {
     backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    borderColor: theme.colors.accent,
+    borderColor: THEME.colors.accent,
   },
-  optionText: {
-    color: theme.colors.textSecondary,
+  pillBtnText: {
     fontSize: 11,
     fontWeight: '600',
+    color: THEME.colors.textSecondary,
   },
-  optionTextActive: {
-    color: theme.colors.accent,
+  pillBtnTextActive: {
+    color: THEME.colors.accent,
     fontWeight: '700',
   },
-  divider: {
+  settingsDivider: {
     height: 1,
-    backgroundColor: theme.colors.borderSubtle,
-    marginVertical: 14,
+    backgroundColor: THEME.colors.borderSubtle,
+    marginVertical: THEME.spacing.lg,
   },
   promptHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  resetLink: {
-    color: theme.colors.accent,
-    fontSize: 11,
-    fontWeight: '600',
+  resetPromptLink: {
+    color: THEME.colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
   },
   systemPromptInput: {
-    backgroundColor: theme.colors.bgApp,
-    borderRadius: theme.radii.md,
+    backgroundColor: THEME.colors.bgSurface,
+    borderRadius: THEME.radii.md,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: THEME.colors.borderSubtle,
     padding: 12,
-    color: theme.colors.textPrimary,
+    color: THEME.colors.textPrimary,
     fontSize: 13,
     lineHeight: 19,
     minHeight: 100,
@@ -253,42 +262,40 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'flex-start',
   },
-  privacyIcon: {
+  privacyIconText: {
     fontSize: 22,
     marginTop: 2,
   },
-  privacyTextGroup: {
-    flex: 1,
-  },
-  privacyTitle: {
-    color: theme.colors.textPrimary,
+  privacyHeading: {
+    color: THEME.colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 4,
   },
-  privacyBody: {
-    color: theme.colors.textSecondary,
+  privacyBodyText: {
+    color: THEME.colors.textSecondary,
     fontSize: 12,
     lineHeight: 18,
   },
-  infoRow: {
+  diagRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginVertical: 3,
   },
-  infoLabel: {
-    color: theme.colors.textSecondary,
+  diagLabel: {
+    color: THEME.colors.textSecondary,
     fontSize: 13,
   },
-  infoValue: {
-    color: theme.colors.textPrimary,
+  diagVal: {
+    color: THEME.colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
-  textAccent: {
-    color: theme.colors.accent,
+  valAccent: {
+    color: THEME.colors.accent,
   },
-  textMuted: {
-    color: theme.colors.textTertiary,
+  valMuted: {
+    color: THEME.colors.textSecondary,
   },
 });
