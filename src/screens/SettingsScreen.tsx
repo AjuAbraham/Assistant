@@ -74,6 +74,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 { val: 256, label: '256 tokens' },
                 { val: 512, label: '512 tokens' },
                 { val: 1024, label: '1024 tokens' },
+                { val: 1536, label: '1536 tokens' },
               ].map((opt) => (
                 <TouchableOpacity
                   key={opt.val}

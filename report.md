@@ -1,48 +1,20 @@
-## Veresa — Generation Issue Diagnostic
+Review your previous report and proceed with the following plan.
 
-**Repo:** https://github.com/AjuAbraham/Assistant
+1. Inspect the raw completion for `Hi` and establish how many generated tokens belong to `<think>` versus the final answer.
+2. Inspect the exact installed `llama.rn` version and its TypeScript definitions.
+3. Verify whether the current completion uses `enable_thinking: false` as a Boolean and whether `chat_template_kwargs: { enable_thinking: false }` reaches the actual template formatter.
+4. Inspect the formatted prompt produced by `getFormattedChat()` or the equivalent supported API. Confirm that the Qwen3 non-thinking configuration is applied correctly and that the custom template is not conflicting with the model's embedded template.
+5. If thinking is still being generated, make the smallest supported change to disable it at the template level. Do not rely on `stripThinking()` or a system-prompt instruction alone.
+6. Do not change CPU threads, context size, model, sampling settings, or native build configuration during this experiment.
+7. Test `Hi` three times and report:
+   - Raw generated output
+   - Generated-token count
+   - Time to first native token
+   - Time to first visible text
+   - Prompt-processing time
+   - Generation speed
+   - Total elapsed time
 
-**Device:** iQOO Neo 10R, 8 GB RAM  
-**Stack:** React Native, Expo, `llama.rn`, GGUF, offline inference.
+Keep the change only if actual Android testing confirms the behavior. If the template already disables thinking and the model generates no hidden reasoning, investigate initialization and prompt processing instead.
 
-### Observed results
-
-- **Q1 Conversation:** Natural, coherent answer, but included a `<think>` section.
-- **Q2 Exact 120-word story:** Final answer stopped mid-sentence, despite the thinking section containing a complete draft.
-- **Q3 Creative scene:** Only lengthy planning appeared; no final story.
-- **Q4 Mystery:** Only planning appeared; no completed mystery.
-
-### Reported configuration
-
-```ts
-n_ctx: 2048,
-n_threads: 4,
-n_gpu_layers: 0,
-max_tokens: 512,
-jinja: true,
-enable_thinking: false,
-temperature: 0.7,
-top_p: 0.8,
-top_k: 20,
-penalty_repeat: 1.05
-```
-
-Verify these settings against the actual code and installed `llama.rn` version.
-
-### Tasks
-
-1. Inspect `App.tsx`, model initialization, generation, streaming callbacks, and conversation history.
-2. Investigate why `<think>` appears despite `enable_thinking: false`.
-3. Check the model's GGUF chat template and correct Qwen3 formatting.
-4. Determine whether incomplete output originates in native inference or UI streaming.
-5. Check termination reasons, token limits, duplicate chunks, and errors.
-6. Run controlled tests, changing one setting at a time.
-
-### Constraints
-
-- Preserve working offline chat and model management.
-- Don't replace models or change all sampling settings blindly.
-- Don't assume the root cause without evidence.
-- Make the smallest justified fix and verify it on Android.
-
-**Deliverable:** Identify the likely root cause, exact code changes, and test results. Distinguish confirmed findings from hypotheses.
+Do not claim that KV-cache reuse or Jinja compilation is responsible unless the logs establish it. No broad refactor is authorized.

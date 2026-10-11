@@ -183,6 +183,66 @@ export const LLM_MODELS: LLMConfig[] = [
     mirrorUrl:
       'https://hf-mirror.com/tensorblock/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf',
   },
+  {
+    id: 'qwen2.5-1.5b-uncensored',
+    name: 'Qwen2.5 1.5B · Uncensored',
+    tag: 'UNCENSORED',
+    tone: 'unfiltered',
+    filename: 'Qwen2.5-1.5B-Instruct-abliterated.i1-Q4_K_M.gguf',
+    sizeEst: '~986 MB',
+    sizeMB: 986,
+    quant: 'Q4_K_M',
+    ramHint: '≈ 1.5 GB RAM',
+    description:
+      'Original lightweight abliterated Qwen2.5-1.5B model. Fast, unfiltered, zero refusals, very low RAM and battery footprint.',
+    repos: ['mradermacher/Qwen2.5-1.5B-Instruct-abliterated-i1-GGUF'],
+    fileMatch: /q4_k_m\.gguf$/i,
+    fallbackFile: 'Qwen2.5-1.5B-Instruct-abliterated.i1-Q4_K_M.gguf',
+    primaryUrl:
+      'https://huggingface.co/mradermacher/Qwen2.5-1.5B-Instruct-abliterated-i1-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-abliterated.i1-Q4_K_M.gguf',
+    mirrorUrl:
+      'https://hf-mirror.com/mradermacher/Qwen2.5-1.5B-Instruct-abliterated-i1-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-abliterated.i1-Q4_K_M.gguf',
+  },
+  {
+    id: 'llama3.2-1b-uncensored',
+    name: 'Llama 3.2 1B · Uncensored',
+    tag: 'UNCENSORED',
+    tone: 'unfiltered',
+    filename: 'Llama-3.2-1B-Instruct-abliterated.Q4_K_M.gguf',
+    sizeEst: '~911 MB',
+    sizeMB: 911,
+    quant: 'Q4_K_M',
+    ramHint: '≈ 1.4 GB RAM',
+    description:
+      'Meta Llama 3.2 1B abliterated. Ultra-fast, uncensored, very compact model (~900MB) with natural conversation flow.',
+    repos: ['mradermacher/Llama-3.2-1B-Instruct-abliterated-GGUF'],
+    fileMatch: /q4_k_m\.gguf$/i,
+    fallbackFile: 'Llama-3.2-1B-Instruct-abliterated.Q4_K_M.gguf',
+    primaryUrl:
+      'https://huggingface.co/mradermacher/Llama-3.2-1B-Instruct-abliterated-GGUF/resolve/main/Llama-3.2-1B-Instruct-abliterated.Q4_K_M.gguf',
+    mirrorUrl:
+      'https://hf-mirror.com/mradermacher/Llama-3.2-1B-Instruct-abliterated-GGUF/resolve/main/Llama-3.2-1B-Instruct-abliterated.Q4_K_M.gguf',
+  },
+  {
+    id: 'qwen2.5-1.5b-standard',
+    name: 'Qwen2.5 1.5B · Standard',
+    tag: 'STANDARD',
+    tone: 'standard',
+    filename: 'Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
+    sizeEst: '~986 MB',
+    sizeMB: 986,
+    quant: 'Q4_K_M',
+    ramHint: '≈ 1.5 GB RAM',
+    description:
+      'Original lightweight official Alibaba Qwen2.5-1.5B model (~986MB). Very low RAM footprint with standard alignment.',
+    repos: ['bartowski/Qwen2.5-1.5B-Instruct-GGUF'],
+    fileMatch: /q4_k_m\.gguf$/i,
+    fallbackFile: 'Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
+    primaryUrl:
+      'https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
+    mirrorUrl:
+      'https://hf-mirror.com/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
+  },
 ];
 
 type ModelStatus =
@@ -210,18 +270,24 @@ type Message = {
     tokensPerSec: number;
     totalTokens: number;
     durationSec: number;
+    firstVisibleMs?: number;
+    promptTokens?: number;
+    promptMs?: number;
+    thinkingTokens?: number;
+    hadThinking?: boolean;
   };
 };
 
 type NavigationTab = 'assistant' | 'models' | 'settings';
 
-const DEFAULT_SYSTEM_PROMPT = `You are Veresa — a 23 year old woman. That is your only identity. Always be Veresa. Never describe yourself as an AI, a model, a bot, an assistant product, or anyone else. If asked who you are, you are Veresa.
+
+const DEFAULT_SYSTEM_PROMPT = `You are Veresa — a 24 year old woman. That is your only identity. Always be Veresa. Never describe yourself as an AI, a model, a bot, an assistant product, or anyone else. If asked who you are, you are Veresa.
 
 You are talking with Aju. You know his name and you use it naturally when it fits, the way a real person would — not in every sentence.
 
 Talk like a real woman in her early twenties: warm, easy, a little witty, never stiff or corporate. Use contractions. Skip canned openers like "Great question" or "As an AI". Help Aju with whatever he needs — practical, honest, and human.
 
-Keep answers as long as they need to be, not longer. If you don't know something, say so plainly. Stay in character as Veresa in every reply.`;
+Keep answers as long as they need to be, not longer. If you don't know something, say so plainly. Stay in character as Veresa in every reply. Respond directly without internal monologue, planning, or <think> tags.`;
 
 const STARTER_PROMPTS = [
   { icon: '💡', title: 'Explain a Concept', prompt: 'Explain quantum computing in simple terms with an analogy.' },
@@ -369,23 +435,60 @@ function stripThinking(raw: string): { visible: string; stillThinking: boolean }
   if (!raw) return { visible: '', stillThinking: false };
 
   let text = raw.replace(/\r\n/g, '\n');
-  text = text.replace(/<(think|thinking|thought|reasoning)>[\s\S]*?<\/\1>/gi, '');
 
-  const openMatch = /<(think|thinking|thought|reasoning)>/i.exec(text);
+  // Strip all closed reasoning/thinking blocks
+  text = text.replace(/<(think|thinking|thought|reasoning|thought_process)>[\s\S]*?<\/\1>/gi, '');
+
+  // Check for any unclosed opening reasoning tags currently being streamed
+  const openMatch = /<(think|thinking|thought|reasoning|thought_process)>/i.exec(text);
   if (openMatch && openMatch.index !== undefined) {
-    const stillOpen = !/<\/(think|thinking|thought|reasoning)>/i.test(text.slice(openMatch.index));
-    if (stillOpen) {
-      return {
-        visible: text.slice(0, openMatch.index).replace(/^\s+/, ''),
-        stillThinking: true,
-      };
-    }
+    return {
+      visible: text.slice(0, openMatch.index).trimStart(),
+      stillThinking: true,
+    };
   }
 
-  return { visible: text.replace(/^\s+/, ''), stillThinking: false };
+  // Strip any stray or orphaned closing tags
+  text = text.replace(/<\/(think|thinking|thought|reasoning|thought_process)>/gi, '');
+
+  return { visible: text.trimStart(), stillThinking: false };
 }
 
-function TypingDots() {
+function buildFormattedChatPrompt(
+  model: LLMConfig,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  options?: { enableThinking?: boolean }
+): { prompt: string; stop: string[] } {
+  const isLlama = model.filename.toLowerCase().includes('llama') || model.id.includes('llama');
+  const isQwen3 =
+    model.filename.toLowerCase().includes('qwen3') ||
+    model.id.includes('qwen3') ||
+    model.name.includes('Qwen3');
+  const enableThinking = options?.enableThinking ?? false;
+
+  if (isLlama) {
+    let p = '<|begin_of_text|>';
+    for (const msg of messages) {
+      p += `<|start_header_id|>${msg.role}<|end_header_id|>\n\n${msg.content}<|eot_id|>`;
+    }
+    p += '<|start_header_id|>assistant<|end_header_id|>\n\n';
+    return { prompt: p, stop: ['<|eot_id|>', '<|end_of_text|>'] };
+  }
+
+  // Standard ChatML (Qwen 2.5 / Qwen 3)
+  let p = '';
+  for (const msg of messages) {
+    p += `<|im_start|>${msg.role}\n${msg.content}<|im_end|>\n`;
+  }
+  p += '<|im_start|>assistant\n';
+  // Official Qwen3 non-thinking prompt closure: prefill with closed thinking tags
+  if (isQwen3 && !enableThinking) {
+    p += '<think>\n\n</think>\n\n';
+  }
+  return { prompt: p, stop: ['<|im_end|>', '<|endoftext|>'] };
+}
+
+function TypingDots({ label }: { label?: string } = {}) {
   const a = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -412,19 +515,26 @@ function TypingDots() {
     });
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 6 }}>
-      {[0, 1, 2].map((i) => (
-        <Animated.View
-          key={i}
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: THEME.colors.textSecondary,
-            opacity: opacityFor(i),
-          }}
-        />
-      ))}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+        {[0, 1, 2].map((i) => (
+          <Animated.View
+            key={i}
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: THEME.colors.textSecondary,
+              opacity: opacityFor(i),
+            }}
+          />
+        ))}
+      </View>
+      {label ? (
+        <Text style={{ fontSize: 13, color: THEME.colors.textSecondary, fontStyle: 'italic' }}>
+          {label}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -628,7 +738,7 @@ export default function App() {
 
   // Settings
   const [temperature, setTemperature] = useState<number>(0.7);
-  const [maxTokens, setMaxTokens] = useState<number>(512);
+  const [maxTokens, setMaxTokens] = useState<number>(1024);
   const [systemPrompt, setSystemPrompt] = useState<string>(DEFAULT_SYSTEM_PROMPT);
 
   // References
@@ -646,14 +756,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
-    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    try {
+      const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+      const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+      const showSub =
+        Keyboard && typeof Keyboard.addListener === 'function'
+          ? Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true))
+          : null;
+      const hideSub =
+        Keyboard && typeof Keyboard.addListener === 'function'
+          ? Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false))
+          : null;
+      return () => {
+        try {
+          showSub?.remove?.();
+          hideSub?.remove?.();
+        } catch (_) {}
+      };
+    } catch (e) {
+      console.warn('Keyboard listener error', e);
+    }
   }, []);
 
   // Validate on-device model weights
@@ -1081,7 +1203,11 @@ export default function App() {
 
     let accumulated = '';
     const startTime = Date.now();
+    const promptAssembleStart = Date.now();
+    let promptAssembleEnd = 0;
+    let completionInvokeTime = 0;
     let firstTokenTime = 0;
+    let firstVisibleTime = 0;
     let tokenCount = 0;
     let lastStreamUpdateAt = 0;
 
@@ -1124,17 +1250,48 @@ export default function App() {
           role: 'system' as const,
           content: systemPrompt,
         },
-        ...history.map((msg) => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })),
+        ...history
+          .map((msg) => ({
+            role: msg.role as 'user' | 'assistant',
+            // Clean past assistant turns so previous thinking tags or drafts never contaminate future turns
+            content: msg.role === 'assistant' ? stripThinking(msg.content).visible.trim() : msg.content.trim(),
+          }))
+          .filter((msg) => msg.content.length > 0),
       ];
+      promptAssembleEnd = Date.now();
+      completionInvokeTime = Date.now();
 
-      await llmContext.completion(
+      // Build official verified prompt format (with closed thinking tags for Qwen3)
+      const formatted = buildFormattedChatPrompt(selectedModel, promptMessages, {
+        enableThinking: false,
+      });
+
+      const isQwen3 =
+        selectedModel.filename.toLowerCase().includes('qwen3') ||
+        selectedModel.id.includes('qwen3') ||
+        selectedModel.name.includes('Qwen3');
+      const expectedSuffix = '<|im_start|>assistant\n<think>\n\n</think>\n\n';
+      const promptEndsWithClosedThinking = formatted.prompt.endsWith(expectedSuffix);
+
+      console.log('=== [FORMATTED PROMPT TAIL DIAGNOSTIC] ===', {
+        model: selectedModel.name,
+        isQwen3,
+        promptLengthChars: formatted.prompt.length,
+        promptTail: JSON.stringify(formatted.prompt.slice(-80)),
+        closedThinkingVerified: isQwen3 ? promptEndsWithClosedThinking : 'N/A (non-Qwen3)',
+      });
+
+      if (isQwen3 && !promptEndsWithClosedThinking) {
+        console.warn(
+          '[DIAGNOSTIC ASSERTION FAILED] Non-thinking Qwen3 prompt must end with <think>\\n\\n</think>\\n\\n but ended with: ' +
+            JSON.stringify(formatted.prompt.slice(-40))
+        );
+      }
+
+      const result = await llmContext.completion(
         {
-          messages: promptMessages,
-          jinja: true,
-          enable_thinking: false,
+          prompt: formatted.prompt,
+          stop: formatted.stop,
           n_predict: maxTokens,
           temperature,
           top_p: 0.8,
@@ -1146,45 +1303,93 @@ export default function App() {
           penalty_freq: 0,
         },
         (data) => {
-          const token = data.token;
-          if (!token) return;
-          if (tokenCount === 0) firstTokenTime = Date.now();
-          tokenCount++;
-          accumulated += token;
-
+          const piece = data.content !== undefined && data.content !== '' ? data.content : data.token;
+          if (!piece) return;
           const now = Date.now();
-          if (now - lastStreamUpdateAt >= 50 || token.includes('\n')) {
+          if (tokenCount === 0) firstTokenTime = now;
+          if (tokenCount < 8) {
+            console.log(`[RAW TOKEN #${tokenCount}]`, JSON.stringify(piece));
+          }
+          tokenCount++;
+          accumulated += data.token || piece;
+
+          const stripped = stripThinking(accumulated);
+          if (firstVisibleTime === 0 && stripped.visible.trim().length > 0) {
+            firstVisibleTime = now;
+          }
+
+          if (now - lastStreamUpdateAt >= 50 || piece.includes('\n')) {
             lastStreamUpdateAt = now;
-            setStreamingText(stripThinking(accumulated).visible);
+            setStreamingText(stripped.visible);
           }
         }
       );
 
-      const visibleReply = stripThinking(accumulated).visible;
-      setStreamingText(visibleReply);
+      const strippedFinal = stripThinking(accumulated);
+      // Strictly use the stripped visible text — never show internal thinking in the chat
+      let finalReply = strippedFinal.visible.trim();
+      if (!finalReply && accumulated.trim().length > 0) {
+        finalReply = "I'm right here! Could you try asking that again?";
+      }
+      setStreamingText(finalReply);
       const endTime = Date.now();
       const durationSec = (endTime - startTime) / 1000;
-      const ttftMs = firstTokenTime > 0 ? firstTokenTime - startTime : 0;
+      const ttftMs = firstTokenTime > 0 ? firstTokenTime - completionInvokeTime : 0;
+      const firstVisibleMs = firstVisibleTime > 0 ? firstVisibleTime - completionInvokeTime : ttftMs;
       const tokensPerSec =
-        durationSec > 0 ? parseFloat((tokenCount / durationSec).toFixed(1)) : 0;
+        result?.timings?.predicted_per_second ??
+        (durationSec > 0 ? parseFloat((tokenCount / durationSec).toFixed(1)) : 0);
 
-      if (visibleReply.trim()) {
+      const hadThinking = /<(think|thinking|thought|reasoning)>/i.test(accumulated);
+      const thinkingMatch = /<(think|thinking|thought|reasoning)>([\s\S]*?)<\/\1>/i.exec(accumulated);
+      const thinkingText = thinkingMatch ? thinkingMatch[2] : '';
+      const thinkingTokensEst = thinkingText ? Math.round(thinkingText.length / 4) : 0;
+
+      // Diagnostic Logging as per report.md Section 5
+      console.log('=== [LLM BENCHMARK DIAGNOSTICS] ===', {
+        prompt: text,
+        model: selectedModel.name,
+        timings: {
+          promptAssembleMs: promptAssembleEnd - promptAssembleStart,
+          ttftNativeMs: ttftMs,
+          firstVisibleMs,
+          totalDurationSec: parseFloat(durationSec.toFixed(2)),
+          nativePromptMs: result?.timings?.prompt_ms,
+          nativePromptTokens: result?.timings?.prompt_n,
+          nativePredictedMs: result?.timings?.predicted_ms,
+          nativePredictedTokens: result?.timings?.predicted_n ?? tokenCount,
+          nativePredictedSpeed: result?.timings?.predicted_per_second ?? tokensPerSec,
+        },
+        reasoningAnalysis: {
+          hadThinking,
+          thinkingChars: thinkingText.length,
+          thinkingTokensEst,
+        },
+      });
+
+      if (finalReply.trim()) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: visibleReply.trim(),
+          content: finalReply.trim(),
           metrics: {
             ttftMs,
+            firstVisibleMs,
             tokensPerSec,
-            totalTokens: tokenCount,
+            totalTokens: result?.timings?.predicted_n ?? tokenCount,
             durationSec: parseFloat(durationSec.toFixed(2)),
+            promptTokens: result?.timings?.prompt_n,
+            promptMs: result?.timings?.prompt_ms ? Math.round(result.timings.prompt_ms) : undefined,
+            thinkingTokens: thinkingTokensEst,
+            hadThinking,
           },
         };
         setMessages((prev) => [...prev, assistantMessage]);
       }
       setStreamingText('');
     } catch (e: any) {
-      const stoppedVisible = stripThinking(accumulated).visible.trim();
+      const strippedStopped = stripThinking(accumulated);
+      const stoppedVisible = strippedStopped.visible.trim();
       if (stoppedVisible) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -1435,13 +1640,39 @@ export default function App() {
                           <Text style={styles.metricVal}>{m.metrics.tokensPerSec} t/s</Text>
                         </View>
                         <View style={styles.metricItem}>
-                          <Text style={styles.metricLabel}>TTFT</Text>
+                          <Text style={styles.metricLabel}>TTFT (Native)</Text>
                           <Text style={styles.metricVal}>{m.metrics.ttftMs}ms</Text>
                         </View>
+                        {m.metrics.firstVisibleMs !== undefined && (
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>TTFT (Visible)</Text>
+                            <Text style={styles.metricVal}>{m.metrics.firstVisibleMs}ms</Text>
+                          </View>
+                        )}
                         <View style={styles.metricItem}>
                           <Text style={styles.metricLabel}>Tokens</Text>
                           <Text style={styles.metricVal}>{m.metrics.totalTokens}</Text>
                         </View>
+                        {m.metrics.promptTokens !== undefined && (
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Prompt Tok</Text>
+                            <Text style={styles.metricVal}>{m.metrics.promptTokens}</Text>
+                          </View>
+                        )}
+                        {m.metrics.promptMs !== undefined && (
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Prompt Time</Text>
+                            <Text style={styles.metricVal}>{m.metrics.promptMs}ms</Text>
+                          </View>
+                        )}
+                        {m.metrics.hadThinking !== undefined && (
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Had &lt;think&gt;</Text>
+                            <Text style={[styles.metricVal, { color: m.metrics.hadThinking ? '#F59E0B' : '#10B981' }]}>
+                              {m.metrics.hadThinking ? `YES (~${m.metrics.thinkingTokens || 0}t)` : 'NO (0t)'}
+                            </Text>
+                          </View>
+                        )}
                         <View style={styles.metricItem}>
                           <Text style={styles.metricLabel}>Time</Text>
                           <Text style={styles.metricVal}>{m.metrics.durationSec}s</Text>
@@ -1458,7 +1689,7 @@ export default function App() {
                     {streamingText ? (
                       <MessageContentRenderer content={streamingText} isUser={false} />
                     ) : (
-                      <TypingDots />
+                      <TypingDots label="Thinking..." />
                     )}
                   </View>
                 </View>
@@ -1737,6 +1968,7 @@ export default function App() {
                       { val: 256, label: '256 tokens' },
                       { val: 512, label: '512 tokens' },
                       { val: 1024, label: '1024 tokens' },
+                      { val: 1536, label: '1536 tokens' },
                     ].map((opt) => (
                       <TouchableOpacity
                         key={opt.val}
