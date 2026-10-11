@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Share } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Share, Clipboard } from 'react-native';
 import { theme } from '../theme/tokens';
 import { Message, LLMConfig } from '../types';
 
@@ -8,9 +8,48 @@ interface MessageItemProps {
   model: LLMConfig;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, model }) => {
+function CopyGlyph({ color }: { color: string }) {
+  return (
+    <View style={{ width: 13, height: 13 }}>
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: 9,
+          height: 9,
+          borderRadius: 2,
+          borderWidth: 1.1,
+          borderColor: color,
+          opacity: 0.45,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: 9,
+          height: 9,
+          borderRadius: 2,
+          borderWidth: 1.1,
+          borderColor: color,
+        }}
+      />
+    </View>
+  );
+}
+
+export const MessageItem: React.FC<MessageItemProps> = ({ message, model: _model }) => {
   const [showMetrics, setShowMetrics] = useState(false);
+  const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
+
+  const handleCopy = () => {
+    Clipboard.setString(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleShare = () => {
     Share.share({ message: message.content });
@@ -19,65 +58,63 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, model }) => {
   return (
     <View style={[styles.bubbleWrapper, isUser ? styles.wrapperUser : styles.wrapperAssistant]}>
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
-        {/* Header tag */}
-        <View style={styles.bubbleHeader}>
-          <Text style={[styles.roleTag, isUser ? styles.roleTagUser : styles.roleTagAssistant]}>
-            {isUser ? 'YOU' : `VERESA • ${model.tag}`}
-          </Text>
-
-          {!isUser && (
-            <View style={styles.assistantActions}>
-              {message.metrics && (
-                <TouchableOpacity
-                  style={styles.actionBtn}
-                  onPress={() => setShowMetrics(!showMetrics)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.actionBtnText}>{showMetrics ? 'Hide Stats' : '⚡ Stats'}</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={styles.actionBtn} onPress={handleShare} activeOpacity={0.7}>
-                <Text style={styles.actionBtnText}>Share</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* Message Content */}
         <Text style={[styles.messageText, isUser ? styles.textUser : styles.textAssistant]} selectable>
           {message.content}
         </Text>
+      </View>
 
-        {/* Expandable Metrics Bar */}
-        {!isUser && message.metrics && showMetrics && (
-          <View style={styles.metricsBox}>
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>Speed</Text>
-              <Text style={styles.metricVal}>{message.metrics.tokensPerSec} t/s</Text>
-            </View>
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>Latency (TTFT)</Text>
-              <Text style={styles.metricVal}>{message.metrics.ttftMs}ms</Text>
-            </View>
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>Tokens</Text>
-              <Text style={styles.metricVal}>{message.metrics.totalTokens}</Text>
-            </View>
-            <View style={styles.metricItem}>
-              <Text style={styles.metricLabel}>Duration</Text>
-              <Text style={styles.metricVal}>{message.metrics.durationSec}s</Text>
-            </View>
-          </View>
+      <View style={[styles.actions, isUser ? styles.actionsUser : styles.actionsAssistant]}>
+        <TouchableOpacity style={styles.ghostBtn} onPress={handleCopy} activeOpacity={0.6}>
+          {copied ? (
+            <Text style={styles.copiedMark}>✓</Text>
+          ) : (
+            <CopyGlyph color={theme.colors.textTertiary} />
+          )}
+        </TouchableOpacity>
+        {!isUser && (
+          <TouchableOpacity style={styles.ghostBtn} onPress={handleShare} activeOpacity={0.6}>
+            <Text style={styles.ghostGlyph}>↗</Text>
+          </TouchableOpacity>
+        )}
+        {!isUser && message.metrics && (
+          <TouchableOpacity
+            style={styles.ghostBtn}
+            onPress={() => setShowMetrics(!showMetrics)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.ghostGlyph}>{showMetrics ? '×' : 'i'}</Text>
+          </TouchableOpacity>
         )}
       </View>
+
+      {!isUser && message.metrics && showMetrics && (
+        <View style={styles.metricsBox}>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricLabel}>Speed</Text>
+            <Text style={styles.metricVal}>{message.metrics.tokensPerSec} t/s</Text>
+          </View>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricLabel}>Latency (TTFT)</Text>
+            <Text style={styles.metricVal}>{message.metrics.ttftMs}ms</Text>
+          </View>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricLabel}>Tokens</Text>
+            <Text style={styles.metricVal}>{message.metrics.totalTokens}</Text>
+          </View>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricLabel}>Duration</Text>
+            <Text style={styles.metricVal}>{message.metrics.durationSec}s</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   bubbleWrapper: {
-    marginVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
+    marginVertical: 8,
+    paddingHorizontal: theme.spacing.lg,
   },
   wrapperUser: {
     alignItems: 'flex-end',
@@ -85,58 +122,54 @@ const styles = StyleSheet.create({
   wrapperAssistant: {
     alignItems: 'flex-start',
   },
-  bubble: {
-    borderRadius: theme.radii.lg,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
+  bubble: {},
   bubbleUser: {
     backgroundColor: theme.colors.userBubble,
-    maxWidth: '86%',
-    borderBottomRightRadius: theme.radii.xs,
+    maxWidth: '78%',
+    borderRadius: 20,
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   bubbleAssistant: {
-    backgroundColor: theme.colors.assistantBubble,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: 'transparent',
     width: '100%',
-    borderBottomLeftRadius: theme.radii.xs,
-  },
-  bubbleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  roleTag: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  roleTagUser: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  roleTagAssistant: {
-    color: theme.colors.accent,
-  },
-  assistantActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  actionBtn: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 2,
     paddingVertical: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: theme.radii.sm,
   },
-  actionBtnText: {
-    color: theme.colors.textSecondary,
-    fontSize: 10,
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 2,
+  },
+  actionsUser: {
+    justifyContent: 'flex-end',
+  },
+  actionsAssistant: {
+    justifyContent: 'flex-start',
+  },
+  ghostBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+  },
+  ghostGlyph: {
+    color: theme.colors.textTertiary,
+    fontSize: 13,
     fontWeight: '600',
+  },
+  copiedMark: {
+    color: theme.colors.success,
+    fontSize: 13,
+    fontWeight: '700',
   },
   messageText: {
     ...theme.typography.body,
+    fontSize: 15.5,
+    lineHeight: 23,
   },
   textUser: {
     color: theme.colors.userBubbleText,
@@ -148,10 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
+    marginTop: 6,
   },
   metricItem: {
     backgroundColor: 'rgba(0, 0, 0, 0.3)',

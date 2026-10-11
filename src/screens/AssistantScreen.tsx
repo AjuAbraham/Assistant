@@ -5,7 +5,6 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { theme } from '../theme/tokens';
 import { Message, LLMConfig, ModelStatus } from '../types';
@@ -158,20 +157,14 @@ export const AssistantScreen: React.FC<AssistantScreenProps> = ({
           <MessageItem key={m.id} message={m} model={selectedModel} />
         ))}
 
-        {/* Live Streaming Response Bubble */}
-        {isGenerating && streamingText !== '' && (
+        {isGenerating && (
           <View style={styles.streamingBubbleWrapper}>
             <View style={styles.streamingBubble}>
-              <View style={styles.streamingHeader}>
-                <View style={styles.streamingTagGroup}>
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
-                  <Text style={styles.streamingRoleTag}>VERESA (Generating...)</Text>
-                </View>
-                <TouchableOpacity onPress={onStopGeneration} style={styles.streamingStopBtn} activeOpacity={0.7}>
-                  <Text style={styles.streamingStopBtnText}>⏹ Stop</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.streamingContentText}>{streamingText}</Text>
+              {streamingText ? (
+                <Text style={styles.streamingContentText}>{streamingText}</Text>
+              ) : (
+                <Text style={styles.streamingContentText}>···</Text>
+              )}
             </View>
           </View>
         )}

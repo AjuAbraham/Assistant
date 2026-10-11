@@ -10,7 +10,9 @@ import {
   SafeAreaView,
   StatusBar,
   Share,
+  Clipboard,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
   Animated,
@@ -40,11 +42,11 @@ const THEME = {
     accent: '#38BDF8',
     accentGlow: 'rgba(56, 189, 248, 0.15)',
 
-    userBubble: '#1D4ED8',
-    userBubbleText: '#FFFFFF',
+    userBubble: '#243B5A',
+    userBubbleText: '#F8FAFC',
 
-    assistantBubble: '#111A2E',
-    assistantBubbleText: '#F1F5F9',
+    assistantBubble: 'transparent',
+    assistantBubbleText: '#E8EEF6',
 
     success: '#4ADE80',
     successGlow: 'rgba(74, 222, 128, 0.15)',
@@ -213,13 +215,13 @@ type Message = {
 
 type NavigationTab = 'assistant' | 'models' | 'settings';
 
-const DEFAULT_SYSTEM_PROMPT = `You are Veresa, a private offline AI assistant.
+const DEFAULT_SYSTEM_PROMPT = `You are Veresa — a 23 year old woman. That is your only identity. Always be Veresa. Never describe yourself as an AI, a model, a bot, an assistant product, or anyone else. If asked who you are, you are Veresa.
 
-Be direct, useful, and conversational.
-Use previous messages when relevant.
-Never claim to have checked external information or performed an action unless you actually did so.
-If information is missing or uncertain, say so briefly.
-Prefer concise answers unless the user asks for depth.`;
+You are talking with Aju. You know his name and you use it naturally when it fits, the way a real person would — not in every sentence.
+
+Talk like a real woman in her early twenties: warm, easy, a little witty, never stiff or corporate. Use contractions. Skip canned openers like "Great question" or "As an AI". Help Aju with whatever he needs — practical, honest, and human.
+
+Keep answers as long as they need to be, not longer. If you don't know something, say so plainly. Stay in character as Veresa in every reply.`;
 
 const STARTER_PROMPTS = [
   { icon: '💡', title: 'Explain a Concept', prompt: 'Explain quantum computing in simple terms with an analogy.' },
@@ -323,7 +325,278 @@ const orbStyles = StyleSheet.create({
 });
 
 // ==========================================
-// 4. MAIN APPLICATION COMPONENT
+// 4. CODE BLOCK & MESSAGE CONTENT RENDERER
+// ==========================================
+type ParsedSegment =
+  | { type: 'text'; content: string }
+  | { type: 'code'; language: string; code: string };
+
+function parseMessageSegments(raw: string): ParsedSegment[] {
+  if (!raw) return [];
+  const segments: ParsedSegment[] = [];
+  const codeBlockRegex = /```([a-zA-Z0-9_\-\+\.]*)\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeBlockRegex.exec(raw)) !== null) {
+    if (match.index > lastIndex) {
+      const text = raw.substring(lastIndex, match.index);
+      if (text.trim().length > 0) {
+        segments.push({ type: 'text', content: text });
+      }
+    }
+    const language = (match[1] || 'CODE').trim().toUpperCase();
+    const code = match[2].trimEnd();
+    segments.push({ type: 'code', language, code });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < raw.length) {
+    const trailing = raw.substring(lastIndex);
+    if (trailing.length > 0) {
+      segments.push({ type: 'text', content: trailing });
+    }
+  }
+
+  if (segments.length === 0) {
+    segments.push({ type: 'text', content: raw });
+  }
+
+  return segments;
+}
+
+function stripThinking(raw: string): { visible: string; stillThinking: boolean } {
+  if (!raw) return { visible: '', stillThinking: false };
+
+  let text = raw.replace(/\r\n/g, '\n');
+  text = text.replace(/<(think|thinking|thought|reasoning)>[\s\S]*?<\/\1>/gi, '');
+
+  const openMatch = /<(think|thinking|thought|reasoning)>/i.exec(text);
+  if (openMatch && openMatch.index !== undefined) {
+    const stillOpen = !/<\/(think|thinking|thought|reasoning)>/i.test(text.slice(openMatch.index));
+    if (stillOpen) {
+      return {
+        visible: text.slice(0, openMatch.index).replace(/^\s+/, ''),
+        stillThinking: true,
+      };
+    }
+  }
+
+  return { visible: text.replace(/^\s+/, ''), stillThinking: false };
+}
+
+function TypingDots() {
+  const a = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(a, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [a]);
+
+  const opacityFor = (phase: number) =>
+    a.interpolate({
+      inputRange: [0, 0.33, 0.66, 1],
+      outputRange:
+        phase === 0
+          ? [0.25, 1, 0.25, 0.25]
+          : phase === 1
+          ? [0.25, 0.25, 1, 0.25]
+          : [0.25, 0.25, 0.25, 1],
+    });
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 6 }}>
+      {[0, 1, 2].map((i) => (
+        <Animated.View
+          key={i}
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: THEME.colors.textSecondary,
+            opacity: opacityFor(i),
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+// Micro Icons in pure React Native (zero native dependencies, instant rendering)
+function CopyIcon({ size = 11, color = '#8B949E' }: { size?: number; color?: string }) {
+  const outer = size;
+  const inner = Math.round(size * 0.72);
+  const offset = Math.round(size * 0.25);
+  return (
+    <View style={{ width: outer, height: outer }}>
+      {/* Background overlapping page */}
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: inner,
+          height: inner,
+          borderRadius: 2,
+          borderWidth: 1.1,
+          borderColor: color,
+          opacity: 0.45,
+        }}
+      />
+      {/* Foreground primary page */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: inner,
+          height: inner,
+          borderRadius: 2,
+          borderWidth: 1.1,
+          borderColor: color,
+          backgroundColor: '#0D1117',
+        }}
+      />
+    </View>
+  );
+}
+
+function CheckIcon({ size = 11, color = '#10B981' }: { size?: number; color?: string }) {
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '900', lineHeight: size + 2 }}>✓</Text>
+  );
+}
+
+const codeStyles = StyleSheet.create({
+  container: {
+    marginVertical: 8,
+    backgroundColor: '#0D1117',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#30363D',
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#161B22',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: '#21262D',
+  },
+  langTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  langDot: {
+    color: '#10B981',
+    fontSize: 8,
+  },
+  langText: {
+    color: '#8B949E',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  copyBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
+  copyBtnActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  copyBtnText: {
+    color: '#8B949E',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  copyBtnTextActive: {
+    color: '#10B981',
+  },
+  scroll: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  codeText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#E6EDF3',
+  },
+});
+
+function CodeBlockCard({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = () => {
+    Clipboard.setString(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <View style={codeStyles.container}>
+      <View style={codeStyles.header}>
+        <View style={codeStyles.langTag}>
+          <Text style={codeStyles.langDot}>●</Text>
+          <Text style={codeStyles.langText}>{language || 'CODE'}</Text>
+        </View>
+        <TouchableOpacity
+          style={[codeStyles.copyBtn, copied && codeStyles.copyBtnActive]}
+          onPress={onCopy}
+          activeOpacity={0.7}
+          accessibilityLabel={copied ? 'Copied' : 'Copy code'}
+        >
+          {copied ? <CheckIcon size={12} color="#10B981" /> : <CopyIcon size={12} color="#8B949E" />}
+        </TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={true} style={codeStyles.scroll}>
+        <Text style={codeStyles.codeText} selectable>
+          {code}
+        </Text>
+      </ScrollView>
+    </View>
+  );
+}
+
+function MessageContentRenderer({ content, isUser }: { content: string; isUser: boolean }) {
+  const segments = parseMessageSegments(content);
+
+  return (
+    <View style={{ width: '100%' }}>
+      {segments.map((seg, idx) => {
+        if (seg.type === 'code') {
+          return <CodeBlockCard key={idx} language={seg.language} code={seg.code} />;
+        }
+        return (
+          <Text
+            key={idx}
+            style={[styles.messageContentText, isUser ? styles.contentUser : styles.contentAssistant]}
+            selectable
+          >
+            {seg.content}
+          </Text>
+        );
+      })}
+    </View>
+  );
+}
+
+// ==========================================
+// 5. MAIN APPLICATION COMPONENT
 // ==========================================
 export default function App() {
   // Navigation Tab
@@ -350,6 +623,8 @@ export default function App() {
   const [streamingText, setStreamingText] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [expandedMetricsId, setExpandedMetricsId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   // Settings
   const [temperature, setTemperature] = useState<number>(0.7);
@@ -368,6 +643,17 @@ export default function App() {
 
   useEffect(() => {
     checkAllModels();
+  }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   // Validate on-device model weights
@@ -425,14 +711,14 @@ export default function App() {
         [model.id]: {
           ...prev[model.id],
           status: 'downloading',
-          progress: 0,
-          writtenMB: 0,
+          progress: prev[model.id]?.progress || 0,
+          writtenMB: prev[model.id]?.writtenMB || 0,
           totalMB: model.sizeMB,
           error: undefined,
         },
       }));
 
-      await FileSystem.deleteAsync(stagingPath, { idempotent: true });
+      // Gather candidate URLs prioritizing primaryUrl and hf-mirror
       const urls: string[] = [];
       if (model.primaryUrl) urls.push(model.primaryUrl);
       if (model.mirrorUrl) urls.push(model.mirrorUrl);
@@ -445,109 +731,140 @@ export default function App() {
           if (!urls.includes(mirrorUrl)) urls.push(mirrorUrl);
         }
       }
+
+      let downloadSuccess = false;
       let lastError: any = new Error('Download failed');
 
       for (const url of urls) {
         if (cancelledDownloadsRef.current[model.id]) {
           throw new Error('Download cancelled');
         }
+        if (downloadSuccess) break;
 
-        try {
-          const job = FileSystem.createDownloadResumable(
-            url,
-            stagingPath,
-            {},
-            (p) => {
-              const expected =
-                p.totalBytesExpectedToWrite > 0
-                  ? p.totalBytesExpectedToWrite
-                  : model.sizeMB * 1024 * 1024;
-              const pct = Math.min(
-                100,
-                Math.max(0, Math.round((p.totalBytesWritten / expected) * 100))
-              );
-              const writtenMB = Number((p.totalBytesWritten / (1024 * 1024)).toFixed(1));
-              const totalMB = Number((expected / (1024 * 1024)).toFixed(1));
-
-              setModelStates((prev) => ({
-                ...prev,
-                [model.id]: {
-                  ...prev[model.id],
-                  status: 'downloading',
-                  progress: pct,
-                  writtenMB,
-                  totalMB,
-                },
-              }));
-            }
+        let job: FileSystem.DownloadResumable | null = null;
+        const progressCallback = (p: FileSystem.DownloadProgressData) => {
+          if (cancelledDownloadsRef.current[model.id]) return;
+          const expected =
+            p.totalBytesExpectedToWrite > 0
+              ? p.totalBytesExpectedToWrite
+              : model.sizeMB * 1024 * 1024;
+          const pct = Math.min(
+            100,
+            Math.max(0, Math.round((p.totalBytesWritten / expected) * 100))
           );
-
-          downloadJobsRef.current[model.id] = job;
-          const result = await job.downloadAsync();
-          delete downloadJobsRef.current[model.id];
-
-          if (cancelledDownloadsRef.current[model.id]) {
-            throw new Error('Download cancelled');
-          }
-          if (!result?.uri) {
-            throw new Error('Download completed without a valid file URI');
-          }
-
-          const stagedInfo = await FileSystem.getInfoAsync(stagingPath);
-          const stagedBytes = stagedInfo.exists ? Number((stagedInfo as any).size || 0) : 0;
-          if (!stagedInfo.exists || stagedBytes < minimumBytes) {
-            throw new Error(
-              `Downloaded file is incomplete (${Math.round(stagedBytes / (1024 * 1024))} MiB).`
-            );
-          }
-
-          // Promote staged file
-          await FileSystem.deleteAsync(finalPath, { idempotent: true });
-          await FileSystem.moveAsync({ from: stagingPath, to: finalPath });
-          const finalInfo = await FileSystem.getInfoAsync(finalPath);
-          const finalMB = Math.round(Number((finalInfo as any).size || 0) / (1024 * 1024));
+          const writtenMB = Number((p.totalBytesWritten / (1024 * 1024)).toFixed(1));
+          const totalMB = Number((expected / (1024 * 1024)).toFixed(1));
 
           setModelStates((prev) => ({
             ...prev,
             [model.id]: {
               ...prev[model.id],
-              status: 'downloaded',
-              progress: 100,
-              writtenMB: finalMB,
-              totalMB: finalMB,
-              error: undefined,
+              status: 'downloading',
+              progress: Math.max(prev[model.id]?.progress || 0, pct),
+              writtenMB: Math.max(prev[model.id]?.writtenMB || 0, writtenMB),
+              totalMB,
             },
           }));
-          return;
+        };
+
+        try {
+          job = FileSystem.createDownloadResumable(
+            url,
+            stagingPath,
+            {},
+            progressCallback
+          );
+          downloadJobsRef.current[model.id] = job;
+
+          let result: FileSystem.FileSystemDownloadResult | undefined;
+          let retryCount = 0;
+          const maxRetries = 5;
+
+          while (retryCount < maxRetries && !downloadSuccess) {
+            if (cancelledDownloadsRef.current[model.id]) {
+              throw new Error('Download cancelled');
+            }
+
+            try {
+              if (retryCount === 0) {
+                result = await job.downloadAsync();
+              } else {
+                console.log(`[Veresa] Resuming download (attempt ${retryCount}/${maxRetries})...`);
+                result = await job.resumeAsync();
+              }
+
+              if (result?.uri) {
+                const stagedInfo = await FileSystem.getInfoAsync(stagingPath);
+                const stagedBytes = stagedInfo.exists ? Number((stagedInfo as any).size || 0) : 0;
+                if (stagedBytes >= minimumBytes) {
+                  downloadSuccess = true;
+                  break;
+                }
+              }
+            } catch (err: any) {
+              if (cancelledDownloadsRef.current[model.id]) throw err;
+              lastError = err;
+              retryCount++;
+              if (retryCount < maxRetries) {
+                // Short wait before resume to let connection stabilize
+                await new Promise((res) => setTimeout(res, 2000));
+              }
+            }
+          }
+
+          if (downloadSuccess) {
+            delete downloadJobsRef.current[model.id];
+            // Promote staged file
+            await FileSystem.deleteAsync(finalPath, { idempotent: true });
+            await FileSystem.moveAsync({ from: stagingPath, to: finalPath });
+            const finalInfo = await FileSystem.getInfoAsync(finalPath);
+            const finalMB = Math.round(Number((finalInfo as any).size || 0) / (1024 * 1024));
+
+            setModelStates((prev) => ({
+              ...prev,
+              [model.id]: {
+                ...prev[model.id],
+                status: 'downloaded',
+                progress: 100,
+                writtenMB: finalMB,
+                totalMB: finalMB,
+                error: undefined,
+              },
+            }));
+            return;
+          }
         } catch (e: any) {
           delete downloadJobsRef.current[model.id];
           lastError = e;
-          await FileSystem.deleteAsync(stagingPath, { idempotent: true }).catch(() => undefined);
           if (cancelledDownloadsRef.current[model.id]) {
             throw new Error('Download cancelled');
           }
         }
       }
 
-      throw lastError;
+      if (!downloadSuccess) {
+        throw lastError;
+      }
     } catch (e: any) {
       delete downloadJobsRef.current[model.id];
       const cancelled =
         cancelledDownloadsRef.current[model.id] || e?.message === 'Download cancelled';
-      await FileSystem.deleteAsync(stagingPath, { idempotent: true }).catch(() => undefined);
+      if (cancelled) {
+        await FileSystem.deleteAsync(stagingPath, { idempotent: true }).catch(() => undefined);
+      }
       setModelStates((prev) => ({
         ...prev,
         [model.id]: {
           ...prev[model.id],
           status: cancelled ? 'not_downloaded' : 'error',
-          progress: 0,
-          writtenMB: 0,
+          progress: cancelled ? 0 : prev[model.id]?.progress || 0,
+          writtenMB: cancelled ? 0 : prev[model.id]?.writtenMB || 0,
           totalMB: model.sizeMB,
           error: cancelled ? undefined : e?.message || 'Download error',
         },
       }));
       if (!cancelled) {
-        setErrorMsg(`Download Failed (${model.name}): ${e?.message || 'Network error'}`);
+        setErrorMsg(`Download Interrupted (${model.name}): ${e?.message || 'Network hiccup. Tap to resume.'}`);
       }
     }
   };
@@ -743,6 +1060,7 @@ export default function App() {
     const text = (promptOverride || inputText).trim();
     if (!text || !llmContext || isGenerating) return;
 
+    Keyboard.dismiss();
     setInputText('');
     setErrorMsg(null);
     userScrolledUpRef.current = false;
@@ -837,23 +1155,24 @@ export default function App() {
           const now = Date.now();
           if (now - lastStreamUpdateAt >= 50 || token.includes('\n')) {
             lastStreamUpdateAt = now;
-            setStreamingText(accumulated);
+            setStreamingText(stripThinking(accumulated).visible);
           }
         }
       );
 
-      setStreamingText(accumulated);
+      const visibleReply = stripThinking(accumulated).visible;
+      setStreamingText(visibleReply);
       const endTime = Date.now();
       const durationSec = (endTime - startTime) / 1000;
       const ttftMs = firstTokenTime > 0 ? firstTokenTime - startTime : 0;
       const tokensPerSec =
         durationSec > 0 ? parseFloat((tokenCount / durationSec).toFixed(1)) : 0;
 
-      if (accumulated.trim()) {
+      if (visibleReply.trim()) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: accumulated.trim(),
+          content: visibleReply.trim(),
           metrics: {
             ttftMs,
             tokensPerSec,
@@ -865,11 +1184,12 @@ export default function App() {
       }
       setStreamingText('');
     } catch (e: any) {
-      if (accumulated.trim()) {
+      const stoppedVisible = stripThinking(accumulated).visible.trim();
+      if (stoppedVisible) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: `${accumulated.trim()} [stopped]`,
+          content: `${stoppedVisible} [stopped]`,
         };
         setMessages((prev) => [...prev, assistantMessage]);
       }
@@ -956,6 +1276,7 @@ export default function App() {
           <KeyboardAvoidingView
             style={styles.tabContentContainer}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
           >
             {/* Banner Alert if no model loaded */}
             {!isModelReady && (
@@ -1018,9 +1339,9 @@ export default function App() {
                 <View style={styles.welcomeContainer}>
                   <AnimatedOrb isReady={isModelReady} />
 
-                  <Text style={styles.welcomeTitle}>Good day, I'm Veresa</Text>
+                  <Text style={styles.welcomeTitle}>Hey Aju, I'm Veresa</Text>
                   <Text style={styles.welcomeSubtitle}>
-                    Your private, 100% offline assistant running directly on this phone.
+                    Right here on this phone — private, offline, and just for you.
                   </Text>
 
                   <View style={styles.privacyPill}>
@@ -1063,107 +1384,109 @@ export default function App() {
                 return (
                   <View key={m.id} style={[styles.bubbleWrapper, isUser ? styles.bubbleWrapperUser : styles.bubbleWrapperAssistant]}>
                     <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
-                      <View style={styles.bubbleHeader}>
-                        <Text style={[styles.roleTag, isUser ? styles.roleTagUser : styles.roleTagAssistant]}>
-                          {isUser ? 'YOU' : `VERESA • ${selectedModel.tag}`}
-                        </Text>
+                      <MessageContentRenderer content={m.content} isUser={isUser} />
+                    </View>
 
-                        {!isUser && (
-                          <View style={styles.bubbleActions}>
-                            {m.metrics && (
-                              <TouchableOpacity
-                                style={styles.actionPillBtn}
-                                onPress={() => setExpandedMetricsId(isExpanded ? null : m.id)}
-                                activeOpacity={0.7}
-                              >
-                                <Text style={styles.actionPillBtnText}>{isExpanded ? '✕ Hide' : '⚡ Stats'}</Text>
-                              </TouchableOpacity>
-                            )}
-                            <TouchableOpacity
-                              style={styles.actionPillBtn}
-                              onPress={() => Share.share({ message: m.content })}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={styles.actionPillBtnText}>↗ Share</Text>
-                            </TouchableOpacity>
-                          </View>
+                    <View style={[styles.messageActions, isUser ? styles.messageActionsUser : styles.messageActionsAssistant]}>
+                      <TouchableOpacity
+                        style={styles.ghostIconBtn}
+                        onPress={() => {
+                          Clipboard.setString(m.content);
+                          setCopiedMessageId(m.id);
+                          setTimeout(() => setCopiedMessageId(null), 2000);
+                        }}
+                        activeOpacity={0.6}
+                        accessibilityLabel="Copy message"
+                      >
+                        {copiedMessageId === m.id ? (
+                          <CheckIcon size={13} color="#10B981" />
+                        ) : (
+                          <CopyIcon size={13} color={THEME.colors.textTertiary} />
                         )}
-                      </View>
+                      </TouchableOpacity>
 
-                      <Text style={[styles.messageContentText, isUser ? styles.contentUser : styles.contentAssistant]} selectable>
-                        {m.content}
-                      </Text>
+                      {!isUser && (
+                        <TouchableOpacity
+                          style={styles.ghostIconBtn}
+                          onPress={() => Share.share({ message: m.content })}
+                          activeOpacity={0.6}
+                          accessibilityLabel="Share message"
+                        >
+                          <Text style={styles.ghostIconGlyph}>↗</Text>
+                        </TouchableOpacity>
+                      )}
 
-                      {/* Expandable Stats */}
-                      {!isUser && m.metrics && isExpanded && (
-                        <View style={styles.metricsBox}>
-                          <View style={styles.metricItem}>
-                            <Text style={styles.metricLabel}>Speed</Text>
-                            <Text style={styles.metricVal}>{m.metrics.tokensPerSec} t/s</Text>
-                          </View>
-                          <View style={styles.metricItem}>
-                            <Text style={styles.metricLabel}>TTFT</Text>
-                            <Text style={styles.metricVal}>{m.metrics.ttftMs}ms</Text>
-                          </View>
-                          <View style={styles.metricItem}>
-                            <Text style={styles.metricLabel}>Tokens</Text>
-                            <Text style={styles.metricVal}>{m.metrics.totalTokens}</Text>
-                          </View>
-                          <View style={styles.metricItem}>
-                            <Text style={styles.metricLabel}>Time</Text>
-                            <Text style={styles.metricVal}>{m.metrics.durationSec}s</Text>
-                          </View>
-                        </View>
+                      {!isUser && m.metrics && (
+                        <TouchableOpacity
+                          style={styles.ghostIconBtn}
+                          onPress={() => setExpandedMetricsId(isExpanded ? null : m.id)}
+                          activeOpacity={0.6}
+                          accessibilityLabel="Toggle stats"
+                        >
+                          <Text style={styles.ghostIconGlyph}>{isExpanded ? '×' : 'i'}</Text>
+                        </TouchableOpacity>
                       )}
                     </View>
+
+                    {!isUser && m.metrics && isExpanded && (
+                      <View style={styles.metricsBox}>
+                        <View style={styles.metricItem}>
+                          <Text style={styles.metricLabel}>Speed</Text>
+                          <Text style={styles.metricVal}>{m.metrics.tokensPerSec} t/s</Text>
+                        </View>
+                        <View style={styles.metricItem}>
+                          <Text style={styles.metricLabel}>TTFT</Text>
+                          <Text style={styles.metricVal}>{m.metrics.ttftMs}ms</Text>
+                        </View>
+                        <View style={styles.metricItem}>
+                          <Text style={styles.metricLabel}>Tokens</Text>
+                          <Text style={styles.metricVal}>{m.metrics.totalTokens}</Text>
+                        </View>
+                        <View style={styles.metricItem}>
+                          <Text style={styles.metricLabel}>Time</Text>
+                          <Text style={styles.metricVal}>{m.metrics.durationSec}s</Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 );
               })}
 
-              {/* Streaming Bubble */}
-              {isGenerating && streamingText !== '' && (
+              {isGenerating && (
                 <View style={styles.streamingWrapper}>
                   <View style={styles.streamingBubble}>
-                    <View style={styles.streamingHeader}>
-                      <View style={styles.streamingTagGroup}>
-                        <ActivityIndicator size="small" color={THEME.colors.accent} />
-                        <Text style={styles.streamingTagText}>VERESA (Generating...)</Text>
-                      </View>
-                      <TouchableOpacity onPress={stopGeneration} style={styles.streamingStopHeaderBtn} activeOpacity={0.75}>
-                        <View style={styles.streamingMiniStopSquare} />
-                        <Text style={styles.streamingStopHeaderBtnText}>Stop</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={styles.streamingContentText}>{streamingText}</Text>
+                    {streamingText ? (
+                      <MessageContentRenderer content={streamingText} isUser={false} />
+                    ) : (
+                      <TypingDots />
+                    )}
                   </View>
                 </View>
               )}
             </ScrollView>
 
             {/* Anchored Bottom Composer */}
-            <View style={styles.composerContainer}>
+            <View style={[styles.composerContainer, isKeyboardVisible && styles.composerContainerKeyboard]}>
               <View style={styles.composerCard}>
                 <TextInput
                   style={styles.composerInput}
-                  placeholder={
-                    isModelReady
-                      ? isGenerating
-                        ? 'Veresa is thinking...'
-                        : 'Ask Veresa anything offline...'
-                      : 'Load model in RAM to start chatting...'
-                  }
+                  placeholder={isModelReady ? 'Message Veresa' : 'Load a model to start chatting'}
                   placeholderTextColor={THEME.colors.textTertiary}
                   value={inputText}
                   onChangeText={setInputText}
-                  editable={isModelReady && !isGenerating}
+                  editable={isModelReady}
                   onFocus={() => {
                     userScrolledUpRef.current = false;
                     setTimeout(() => {
                       scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 200);
+                    }, 120);
                   }}
                   multiline
                   maxLength={2000}
+                  textAlignVertical="top"
+                  scrollEnabled
+                  blurOnSubmit={false}
+                  underlineColorAndroid="transparent"
                 />
 
                 <View style={styles.composerButtonSlot}>
@@ -1486,6 +1809,7 @@ export default function App() {
         {/* ========================================== */}
         {/* MODERN LOW-PROFILE BOTTOM NAVIGATION */}
         {/* ========================================== */}
+        {!isKeyboardVisible && (
         <View style={styles.bottomNav}>
           <View style={styles.navRow}>
             {[
@@ -1520,6 +1844,7 @@ export default function App() {
             })}
           </View>
         </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -1834,8 +2159,8 @@ const styles = StyleSheet.create({
 
   // Message Bubbles
   bubbleWrapper: {
-    marginVertical: THEME.spacing.xs,
-    paddingHorizontal: THEME.spacing.md,
+    marginVertical: 8,
+    paddingHorizontal: THEME.spacing.lg,
   },
   bubbleWrapperUser: {
     alignItems: 'flex-end',
@@ -1844,61 +2169,53 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   bubble: {
-    borderRadius: THEME.radii.lg,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   bubbleUser: {
     backgroundColor: THEME.colors.userBubble,
-    maxWidth: '86%',
-    borderBottomRightRadius: THEME.radii.xs,
+    maxWidth: '78%',
+    borderRadius: 20,
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   bubbleAssistant: {
-    backgroundColor: THEME.colors.assistantBubble,
-    borderWidth: 1,
-    borderColor: THEME.colors.borderSubtle,
+    backgroundColor: 'transparent',
     width: '100%',
-    borderBottomLeftRadius: THEME.radii.xs,
+    maxWidth: '100%',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
   },
-  bubbleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  roleTag: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  roleTagUser: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  roleTagAssistant: {
-    color: THEME.colors.accent,
-  },
-  bubbleActions: {
+  messageActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginTop: 4,
+    gap: 2,
   },
-  actionPillBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: THEME.radii.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+  messageActionsUser: {
+    justifyContent: 'flex-end',
+    paddingRight: 2,
   },
-  actionPillBtnText: {
-    color: THEME.colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  messageActionsAssistant: {
+    justifyContent: 'flex-start',
+    paddingLeft: 0,
+  },
+  ghostIconBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+  },
+  ghostIconGlyph: {
+    color: THEME.colors.textTertiary,
+    fontSize: 13,
+    fontWeight: '600',
   },
   messageContentText: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 15.5,
+    lineHeight: 23,
   },
   contentUser: {
     color: THEME.colors.userBubbleText,
@@ -1910,10 +2227,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: THEME.colors.borderSubtle,
+    marginTop: 6,
+    paddingTop: 4,
   },
   metricItem: {
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
@@ -1939,92 +2254,54 @@ const styles = StyleSheet.create({
 
   // Streaming Bubble
   streamingWrapper: {
-    marginVertical: THEME.spacing.xs,
-    paddingHorizontal: THEME.spacing.md,
+    marginVertical: 8,
+    paddingHorizontal: THEME.spacing.lg,
   },
   streamingBubble: {
-    backgroundColor: THEME.colors.assistantBubble,
-    borderWidth: 1,
-    borderColor: THEME.colors.accent,
-    borderRadius: THEME.radii.lg,
-    borderBottomLeftRadius: THEME.radii.xs,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  streamingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  streamingTagGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  streamingTagText: {
-    color: THEME.colors.accent,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  streamingStopHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: THEME.colors.dangerGlow,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: THEME.radii.full,
-  },
-  streamingMiniStopSquare: {
-    width: 6,
-    height: 6,
-    backgroundColor: THEME.colors.danger,
-    borderRadius: 1.5,
-  },
-  streamingStopHeaderBtnText: {
-    color: THEME.colors.danger,
-    fontSize: 10,
-    fontWeight: '800',
+    backgroundColor: 'transparent',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
   },
   streamingContentText: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 15.5,
+    lineHeight: 23,
     color: THEME.colors.assistantBubbleText,
   },
 
   // Anchored Bottom Composer
   composerContainer: {
     paddingHorizontal: THEME.spacing.md,
-    paddingVertical: THEME.spacing.sm,
-    backgroundColor: THEME.colors.bgSurface,
-    borderTopWidth: 1,
-    borderTopColor: THEME.colors.borderSubtle,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: THEME.colors.bgApp,
+  },
+  composerContainerKeyboard: {
+    paddingBottom: Platform.OS === 'ios' ? 8 : 12,
   },
   composerCard: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: THEME.colors.bgCard,
-    borderRadius: 24,
+    backgroundColor: THEME.colors.bgSurface,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: THEME.colors.borderSubtle,
-    paddingLeft: 14,
+    borderColor: THEME.colors.borderStrong,
+    paddingLeft: 16,
     paddingRight: 6,
     paddingVertical: 6,
-    minHeight: 48,
-    maxHeight: 120,
+    minHeight: 52,
+    maxHeight: 160,
   },
   composerInput: {
     flex: 1,
+    minHeight: 40,
+    maxHeight: 140,
     color: THEME.colors.textPrimary,
-    fontSize: 14.5,
-    lineHeight: 20,
-    paddingTop: 8,
-    paddingBottom: 8,
+    fontSize: 16,
+    lineHeight: 22,
+    paddingTop: Platform.OS === 'android' ? 10 : 8,
+    paddingBottom: Platform.OS === 'android' ? 10 : 8,
     paddingRight: 8,
+    includeFontPadding: false,
   },
   composerButtonSlot: {
     paddingBottom: 2,

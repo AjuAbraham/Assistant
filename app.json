@@ -10,6 +10,7 @@
       "supportsTablet": true
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.aiassistant.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

@@ -19,11 +19,11 @@ export const theme = {
     accentGlow: 'rgba(56, 189, 248, 0.15)',
     accentDark: '#0284C7',
 
-    userBubble: '#1D4ED8',
-    userBubbleText: '#FFFFFF',
+    userBubble: '#243B5A',
+    userBubbleText: '#F8FAFC',
     
-    assistantBubble: '#111A2E',
-    assistantBubbleText: '#F1F5F9',
+    assistantBubble: 'transparent',
+    assistantBubbleText: '#E8EEF6',
 
     success: '#4ADE80',
     successGlow: 'rgba(74, 222, 128, 0.15)',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, TextInput, TouchableOpacity, Text } from 'react-native';
+import { Platform, StyleSheet, View, TextInput, TouchableOpacity, Text } from 'react-native';
 import { theme } from '../theme/tokens';
 
 interface ComposerProps {
@@ -28,27 +28,24 @@ export const Composer: React.FC<ComposerProps> = ({
       <View style={styles.inputCard}>
         <TextInput
           style={styles.inputField}
-          placeholder={
-            isModelReady
-              ? isGenerating
-                ? 'Veresa is thinking...'
-                : 'Ask Veresa anything offline...'
-              : 'Load a model into RAM to start chatting...'
-          }
+          placeholder={isModelReady ? 'Message Veresa' : 'Load a model to start chatting'}
           placeholderTextColor={theme.colors.textTertiary}
           value={inputText}
           onChangeText={onChangeText}
-          editable={isModelReady && !isGenerating}
+          editable={isModelReady}
           onFocus={onFocus}
           multiline
           maxLength={2000}
+          textAlignVertical="top"
+          scrollEnabled
+          blurOnSubmit={false}
+          underlineColorAndroid="transparent"
         />
 
         <View style={styles.buttonContainer}>
           {isGenerating ? (
             <TouchableOpacity style={styles.stopButton} onPress={onStop} activeOpacity={0.8}>
               <View style={styles.stopIcon} />
-              <Text style={styles.stopText}>Stop</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -71,45 +68,49 @@ export const Composer: React.FC<ComposerProps> = ({
 const styles = StyleSheet.create({
   composerWrapper: {
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.bgSurface,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: theme.colors.bgApp,
   },
   inputCard: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: theme.colors.bgCard,
-    borderRadius: theme.radii.lg,
+    backgroundColor: theme.colors.bgSurface,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    paddingHorizontal: 12,
+    borderColor: theme.colors.borderStrong,
+    paddingLeft: 16,
+    paddingRight: 6,
     paddingVertical: 6,
-    minHeight: 46,
-    maxHeight: 120,
+    minHeight: 52,
+    maxHeight: 160,
   },
   inputField: {
     flex: 1,
+    minHeight: 40,
+    maxHeight: 140,
     color: theme.colors.textPrimary,
-    fontSize: 14,
-    lineHeight: 20,
-    paddingTop: 8,
-    paddingBottom: 8,
+    fontSize: 16,
+    lineHeight: 22,
+    paddingTop: Platform.OS === 'android' ? 10 : 8,
+    paddingBottom: Platform.OS === 'android' ? 10 : 8,
     paddingRight: 8,
+    includeFontPadding: false,
   },
   buttonContainer: {
-    paddingBottom: 4,
+    paddingBottom: 2,
+    paddingLeft: 4,
   },
   sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: theme.colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   sendIcon: {
     fontSize: 18,
@@ -122,23 +123,17 @@ const styles = StyleSheet.create({
     color: theme.colors.textDisabled,
   },
   stopButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: theme.colors.danger,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: theme.radii.sm,
-    gap: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stopIcon: {
-    width: 8,
-    height: 8,
+    width: 12,
+    height: 12,
     backgroundColor: '#FFFFFF',
-    borderRadius: 1,
-  },
-  stopText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
+    borderRadius: 2.5,
   },
 });
