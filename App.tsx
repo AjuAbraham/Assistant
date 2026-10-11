@@ -9,55 +9,190 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
-  Dimensions,
   Share,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  Animated,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { initLlama, LlamaContext } from 'llama.rn';
 
-const { width } = Dimensions.get('window');
+// ==========================================
+// 1. DESIGN SYSTEM & TOKENS
+// ==========================================
+const THEME = {
+  colors: {
+    bgApp: '#080C14',
+    bgSurface: '#0E1626',
+    bgCard: '#131E33',
+    bgCardElevated: '#182744',
 
+    borderSubtle: '#1E2C44',
+    borderStrong: '#2B3E60',
+    borderFocus: '#38BDF8',
+
+    textPrimary: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    textTertiary: '#64748B',
+    textDisabled: '#475569',
+
+    accent: '#38BDF8',
+    accentGlow: 'rgba(56, 189, 248, 0.15)',
+
+    userBubble: '#1D4ED8',
+    userBubbleText: '#FFFFFF',
+
+    assistantBubble: '#111A2E',
+    assistantBubbleText: '#F1F5F9',
+
+    success: '#4ADE80',
+    successGlow: 'rgba(74, 222, 128, 0.15)',
+
+    danger: '#EF4444',
+    dangerGlow: 'rgba(239, 68, 68, 0.15)',
+
+    warning: '#F59E0B',
+    warningGlow: 'rgba(245, 158, 11, 0.15)',
+  },
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+  },
+  radii: {
+    xs: 4,
+    sm: 6,
+    md: 10,
+    lg: 14,
+    xl: 18,
+    full: 9999,
+  },
+};
+
+// ==========================================
+// 2. MODEL CONFIGURATIONS & TYPES
+// ==========================================
 export type LLMConfig = {
   id: string;
   name: string;
   tag: string;
+  tone?: string;
   filename: string;
-  sizeEst: string;
+  sizeEst?: string;
   sizeMB: number;
+  quant?: string;
+  ramHint?: string;
   description: string;
-  primaryUrl: string;
-  mirrorUrl: string;
+  repos?: string[];
+  fileMatch?: RegExp;
+  fallbackFile?: string;
+  primaryUrl?: string;
+  mirrorUrl?: string;
 };
 
 export const LLM_MODELS: LLMConfig[] = [
   {
-    id: 'uncensored',
-    name: 'Qwen2.5 1.5B (Uncensored / Abliterated)',
-    tag: 'UNCENSORED',
-    filename: 'Qwen2.5-1.5B-Instruct-abliterated.i1-Q4_K_M.gguf',
-    sizeEst: '986 MB',
-    sizeMB: 986,
-    description: 'Abliterated weights for unfiltered, creative, and deep local reasoning.',
-    primaryUrl: 'https://huggingface.co/mradermacher/Qwen2.5-1.5B-Instruct-abliterated-i1-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-abliterated.i1-Q4_K_M.gguf',
-    mirrorUrl: 'https://hf-mirror.com/mradermacher/Qwen2.5-1.5B-Instruct-abliterated-i1-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-abliterated.i1-Q4_K_M.gguf',
+    id: 'huihui-4b-2507',
+    name: 'Qwen3 4B · Unfiltered',
+    tag: 'UNFILTERED',
+    tone: 'unfiltered',
+    filename: 'huihui-qwen3-4b-instruct-2507-abliterated.Q4_K_M.gguf',
+    sizeEst: '~2.38 GB',
+    sizeMB: 2385,
+    quant: 'Q4_K_M',
+    ramHint: '≈ 3.2 GB RAM',
+    description:
+      'Abliterated Qwen3-4B-Instruct-2507 (huihui-ai). Refusal behaviour removed, answers directly with no hidden thinking. Best all-round pick for an 8 GB phone.',
+    repos: [
+      'mradermacher/Huihui-Qwen3-4B-Instruct-2507-abliterated-GGUF',
+      'bartowski/huihui-ai_Huihui-Qwen3-4B-Instruct-2507-abliterated-GGUF',
+      'Yolozh/Huihui-Qwen3-4B-Instruct-2507-abliterated-Q4_K_M-GGUF',
+    ],
+    fileMatch: /q4_k_m\.gguf$/i,
+    fallbackFile: 'Huihui-Qwen3-4B-Instruct-2507-abliterated.Q4_K_M.gguf',
+    primaryUrl:
+      'https://huggingface.co/mradermacher/Huihui-Qwen3-4B-Instruct-2507-abliterated-GGUF/resolve/main/Huihui-Qwen3-4B-Instruct-2507-abliterated.Q4_K_M.gguf',
+    mirrorUrl:
+      'https://hf-mirror.com/mradermacher/Huihui-Qwen3-4B-Instruct-2507-abliterated-GGUF/resolve/main/Huihui-Qwen3-4B-Instruct-2507-abliterated.Q4_K_M.gguf',
+  },
+  {
+    id: 'huihui-4b-v2',
+    name: 'Qwen3 4B · Unfiltered v2',
+    tag: 'UNFILTERED',
+    tone: 'unfiltered',
+    filename: 'huihui-qwen3-4b-abliterated-v2.Q4_K_M.gguf',
+    sizeEst: '~2.38 GB',
+    sizeMB: 2385,
+    quant: 'Q4_K_M',
+    ramHint: '≈ 3.2 GB RAM',
+    description:
+      'Abliterated v2 of the original hybrid Qwen3-4B. Alternative if you prefer its writing style; thinking mode is switched off in this app.',
+    repos: [
+      'mradermacher/Huihui-Qwen3-4B-abliterated-v2-GGUF',
+      'bartowski/huihui-ai_Huihui-Qwen3-4B-abliterated-v2-GGUF',
+    ],
+    fileMatch: /q4_k_m\.gguf$/i,
+    fallbackFile: 'Huihui-Qwen3-4B-abliterated-v2.Q4_K_M.gguf',
+    primaryUrl:
+      'https://huggingface.co/mradermacher/Huihui-Qwen3-4B-abliterated-v2-GGUF/resolve/main/Huihui-Qwen3-4B-abliterated-v2.Q4_K_M.gguf',
+    mirrorUrl:
+      'https://hf-mirror.com/mradermacher/Huihui-Qwen3-4B-abliterated-v2-GGUF/resolve/main/Huihui-Qwen3-4B-abliterated-v2.Q4_K_M.gguf',
+  },
+  {
+    id: 'qwen3-4b-2507',
+    name: 'Qwen3 4B · Standard',
+    tag: 'STANDARD',
+    tone: 'standard',
+    filename: 'qwen3-4b-instruct-2507.Q4_K_M.gguf',
+    sizeEst: '~2.38 GB',
+    sizeMB: 2385,
+    quant: 'Q4_K_M',
+    ramHint: '≈ 3.2 GB RAM',
+    description:
+      'Official-aligned Qwen3-4B-Instruct-2507. The smartest "safe" option here — good for coding, study and everyday questions.',
+    repos: ['bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF'],
+    fileMatch: /q4_k_m\.gguf$/i,
+    fallbackFile: 'Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf',
+    primaryUrl:
+      'https://huggingface.co/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf',
+    mirrorUrl:
+      'https://hf-mirror.com/bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf',
   },
   {
     id: 'standard',
-    name: 'Qwen2.5 1.5B (Standard Instruct)',
-    tag: 'STANDARD',
-    filename: 'Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
-    sizeEst: '986 MB',
-    sizeMB: 986,
-    description: 'Official Alibaba Qwen2.5 instruct fine-tune with standard alignment.',
-    primaryUrl: 'https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
-    mirrorUrl: 'https://hf-mirror.com/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
+    name: 'Qwen3 1.7B · Fast',
+    tag: 'FAST',
+    tone: 'fast',
+    filename: 'Qwen3-1.7B-Q4_K_M.gguf',
+    sizeEst: '~1.28 GB',
+    sizeMB: 1223,
+    quant: 'Q4_K_M',
+    ramHint: '≈ 1.8 GB RAM',
+    description:
+      'Small and quick. Great for short chat and low-memory moments, but noticeably less capable than the 4B models.',
+    repos: ['tensorblock/Qwen_Qwen3-1.7B-GGUF'],
+    fileMatch: /q4_k_m\.gguf$/i,
+    fallbackFile: 'Qwen3-1.7B-Q4_K_M.gguf',
+    primaryUrl:
+      'https://huggingface.co/tensorblock/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf',
+    mirrorUrl:
+      'https://hf-mirror.com/tensorblock/Qwen_Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf',
   },
 ];
 
+type ModelStatus =
+  | 'not_downloaded'
+  | 'downloading'
+  | 'downloaded'
+  | 'loading'
+  | 'ready'
+  | 'error';
+
 type ModelState = {
-  status: 'not_downloaded' | 'downloading' | 'downloaded' | 'loading' | 'ready' | 'error';
+  status: ModelStatus;
   progress: number;
   writtenMB: number;
   totalMB: number;
@@ -76,42 +211,156 @@ type Message = {
   };
 };
 
-const SAMPLE_PROMPTS = [
-  '⚡ Why is the sky blue?',
-  '🐍 Write a Python fibonacci function',
-  '💡 Explain quantum computing simply',
-  '🎭 Tell me a short story with a twist',
+type NavigationTab = 'assistant' | 'models' | 'settings';
+
+const DEFAULT_SYSTEM_PROMPT = `You are Veresa, a private offline AI assistant.
+
+Be direct, useful, and conversational.
+Use previous messages when relevant.
+Never claim to have checked external information or performed an action unless you actually did so.
+If information is missing or uncertain, say so briefly.
+Prefer concise answers unless the user asks for depth.`;
+
+const STARTER_PROMPTS = [
+  { icon: '💡', title: 'Explain a Concept', prompt: 'Explain quantum computing in simple terms with an analogy.' },
+  { icon: '🐍', title: 'Write Python Code', prompt: 'Write a Python script that parses JSON from a file and formats it.' },
+  { icon: '🔒', title: 'Why Local AI?', prompt: 'What are the main advantages of running AI models locally on-device?' },
+  { icon: '✍️', title: 'Draft an Email', prompt: 'Help me draft a concise and polite follow-up email to a colleague.' },
 ];
 
+// ==========================================
+// 3. ABSTRACT BREATHING ORB COMPONENT
+// ==========================================
+const AnimatedOrb = ({ isReady }: { isReady: boolean }) => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.0,
+          duration: 2500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+
+  return (
+    <View style={orbStyles.container}>
+      <Animated.View
+        style={[
+          orbStyles.outerRing,
+          isReady ? orbStyles.outerReady : orbStyles.outerIdle,
+          { transform: [{ scale: pulseAnim }] },
+        ]}
+      >
+        <View style={[orbStyles.middleRing, isReady ? orbStyles.middleReady : orbStyles.middleIdle]}>
+          <View style={[orbStyles.innerCore, isReady ? orbStyles.coreReady : orbStyles.coreIdle]} />
+        </View>
+      </Animated.View>
+    </View>
+  );
+};
+
+const orbStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: THEME.spacing.md,
+  },
+  outerRing: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  outerReady: {
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    backgroundColor: 'rgba(56, 189, 248, 0.05)',
+  },
+  outerIdle: {
+    borderColor: 'rgba(100, 116, 139, 0.2)',
+    backgroundColor: 'rgba(100, 116, 139, 0.05)',
+  },
+  middleRing: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  middleReady: {
+    borderColor: 'rgba(56, 189, 248, 0.6)',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+  },
+  middleIdle: {
+    borderColor: 'rgba(100, 116, 139, 0.4)',
+    backgroundColor: 'rgba(100, 116, 139, 0.1)',
+  },
+  innerCore: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  coreReady: {
+    backgroundColor: THEME.colors.accent,
+    elevation: 6,
+  },
+  coreIdle: {
+    backgroundColor: THEME.colors.textSecondary,
+  },
+});
+
+// ==========================================
+// 4. MAIN APPLICATION COMPONENT
+// ==========================================
 export default function App() {
-  const [selectedLlm, setSelectedLlm] = useState<LLMConfig>(LLM_MODELS[0]);
-  
-  // Independent state per model ID
-  const [modelStates, setModelStates] = useState<Record<string, ModelState>>({
-    uncensored: { status: 'not_downloaded', progress: 0, writtenMB: 0, totalMB: 986 },
-    standard: { status: 'not_downloaded', progress: 0, writtenMB: 0, totalMB: 986 },
+  // Navigation Tab
+  const [activeTab, setActiveTab] = useState<NavigationTab>('assistant');
+
+  // Models State
+  const [selectedModel, setSelectedModel] = useState<LLMConfig>(LLM_MODELS[0]);
+  const [modelStates, setModelStates] = useState<Record<string, ModelState>>(() => {
+    const initial: Record<string, ModelState> = {};
+    for (const m of LLM_MODELS) {
+      initial[m.id] = { status: 'not_downloaded', progress: 0, writtenMB: 0, totalMB: m.sizeMB };
+    }
+    return initial;
   });
 
+  // Llama Runtime Context
   const [llmContext, setLlmContext] = useState<LlamaContext | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
 
-  // Chat & Generation State
+  // Chat State
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [streamingText, setStreamingText] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [expandedMetricsId, setExpandedMetricsId] = useState<string | null>(null);
 
-  // Settings & Prompts Collapsible
-  const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [showPrompts, setShowPrompts] = useState<boolean>(false);
+  // Settings
   const [temperature, setTemperature] = useState<number>(0.7);
   const [maxTokens, setMaxTokens] = useState<number>(512);
-  const [systemPrompt, setSystemPrompt] = useState<string>('You are Veresa, a helpful, precise, and fast local offline AI assistant running on device.');
+  const [systemPrompt, setSystemPrompt] = useState<string>(DEFAULT_SYSTEM_PROMPT);
 
+  // References
   const scrollViewRef = useRef<ScrollView>(null);
   const userScrolledUpRef = useRef<boolean>(false);
   const downloadJobsRef = useRef<Record<string, FileSystem.DownloadResumable>>({});
+  const cancelledDownloadsRef = useRef<Record<string, boolean>>({});
 
   const getModelPath = (filename: string) => {
     return `${FileSystem.documentDirectory || ''}${filename}`;
@@ -121,6 +370,7 @@ export default function App() {
     checkAllModels();
   }, []);
 
+  // Validate on-device model weights
   const checkAllModels = async () => {
     if (!FileSystem.documentDirectory) return;
 
@@ -130,8 +380,11 @@ export default function App() {
       const path = getModelPath(model.filename);
       try {
         const info = await FileSystem.getInfoAsync(path);
-        if (info.exists && (info as any).size > 100 * 1024 * 1024) {
-          const sizeMB = Math.round(((info as any).size || 0) / (1024 * 1024));
+        const actualBytes = info.exists ? Number((info as any).size || 0) : 0;
+        const minimumBytes = model.sizeMB * 1024 * 1024 * 0.85;
+
+        if (info.exists && actualBytes >= minimumBytes) {
+          const sizeMB = Math.round(actualBytes / (1024 * 1024));
           setModelStates((prev) => ({
             ...prev,
             [model.id]: {
@@ -158,13 +411,19 @@ export default function App() {
     }
   };
 
-  // Download Model in background with progress
+  // Download Model in background with staging .part verification
   const downloadModel = async (model: LLMConfig) => {
+    const finalPath = getModelPath(model.filename);
+    const stagingPath = `${finalPath}.part`;
+    const minimumBytes = model.sizeMB * 1024 * 1024 * 0.85;
+
     try {
       setErrorMsg(null);
+      cancelledDownloadsRef.current[model.id] = false;
       setModelStates((prev) => ({
         ...prev,
         [model.id]: {
+          ...prev[model.id],
           status: 'downloading',
           progress: 0,
           writtenMB: 0,
@@ -173,115 +432,208 @@ export default function App() {
         },
       }));
 
-      const path = getModelPath(model.filename);
-      const info = await FileSystem.getInfoAsync(path);
-      if (info.exists) {
-        await FileSystem.deleteAsync(path, { idempotent: true });
+      await FileSystem.deleteAsync(stagingPath, { idempotent: true });
+      const urls: string[] = [];
+      if (model.primaryUrl) urls.push(model.primaryUrl);
+      if (model.mirrorUrl) urls.push(model.mirrorUrl);
+      if (model.repos && (model.fallbackFile || model.filename)) {
+        const targetFilename = model.fallbackFile || model.filename;
+        for (const repo of model.repos) {
+          const hfUrl = `https://huggingface.co/${repo}/resolve/main/${targetFilename}`;
+          const mirrorUrl = `https://hf-mirror.com/${repo}/resolve/main/${targetFilename}`;
+          if (!urls.includes(hfUrl)) urls.push(hfUrl);
+          if (!urls.includes(mirrorUrl)) urls.push(mirrorUrl);
+        }
       }
+      let lastError: any = new Error('Download failed');
 
-      const downloadResumable = FileSystem.createDownloadResumable(
-        model.primaryUrl,
-        path,
-        {},
-        (p) => {
-          const expected = p.totalBytesExpectedToWrite > 0 ? p.totalBytesExpectedToWrite : model.sizeMB * 1024 * 1024;
-          const pct = Math.min(100, Math.max(0, Math.round((p.totalBytesWritten / expected) * 100)));
-          const writtenMB = parseFloat((p.totalBytesWritten / (1024 * 1024)).toFixed(1));
-          const totalMB = parseFloat((expected / (1024 * 1024)).toFixed(1));
+      for (const url of urls) {
+        if (cancelledDownloadsRef.current[model.id]) {
+          throw new Error('Download cancelled');
+        }
+
+        try {
+          const job = FileSystem.createDownloadResumable(
+            url,
+            stagingPath,
+            {},
+            (p) => {
+              const expected =
+                p.totalBytesExpectedToWrite > 0
+                  ? p.totalBytesExpectedToWrite
+                  : model.sizeMB * 1024 * 1024;
+              const pct = Math.min(
+                100,
+                Math.max(0, Math.round((p.totalBytesWritten / expected) * 100))
+              );
+              const writtenMB = Number((p.totalBytesWritten / (1024 * 1024)).toFixed(1));
+              const totalMB = Number((expected / (1024 * 1024)).toFixed(1));
+
+              setModelStates((prev) => ({
+                ...prev,
+                [model.id]: {
+                  ...prev[model.id],
+                  status: 'downloading',
+                  progress: pct,
+                  writtenMB,
+                  totalMB,
+                },
+              }));
+            }
+          );
+
+          downloadJobsRef.current[model.id] = job;
+          const result = await job.downloadAsync();
+          delete downloadJobsRef.current[model.id];
+
+          if (cancelledDownloadsRef.current[model.id]) {
+            throw new Error('Download cancelled');
+          }
+          if (!result?.uri) {
+            throw new Error('Download completed without a valid file URI');
+          }
+
+          const stagedInfo = await FileSystem.getInfoAsync(stagingPath);
+          const stagedBytes = stagedInfo.exists ? Number((stagedInfo as any).size || 0) : 0;
+          if (!stagedInfo.exists || stagedBytes < minimumBytes) {
+            throw new Error(
+              `Downloaded file is incomplete (${Math.round(stagedBytes / (1024 * 1024))} MiB).`
+            );
+          }
+
+          // Promote staged file
+          await FileSystem.deleteAsync(finalPath, { idempotent: true });
+          await FileSystem.moveAsync({ from: stagingPath, to: finalPath });
+          const finalInfo = await FileSystem.getInfoAsync(finalPath);
+          const finalMB = Math.round(Number((finalInfo as any).size || 0) / (1024 * 1024));
 
           setModelStates((prev) => ({
             ...prev,
             [model.id]: {
               ...prev[model.id],
-              status: 'downloading',
-              progress: pct,
-              writtenMB,
-              totalMB,
+              status: 'downloaded',
+              progress: 100,
+              writtenMB: finalMB,
+              totalMB: finalMB,
+              error: undefined,
             },
           }));
+          return;
+        } catch (e: any) {
+          delete downloadJobsRef.current[model.id];
+          lastError = e;
+          await FileSystem.deleteAsync(stagingPath, { idempotent: true }).catch(() => undefined);
+          if (cancelledDownloadsRef.current[model.id]) {
+            throw new Error('Download cancelled');
+          }
         }
-      );
-
-      downloadJobsRef.current[model.id] = downloadResumable;
-      const res = await downloadResumable.downloadAsync();
-      delete downloadJobsRef.current[model.id];
-
-      if (res && res.uri) {
-        setModelStates((prev) => ({
-          ...prev,
-          [model.id]: {
-            ...prev[model.id],
-            status: 'downloaded',
-            progress: 100,
-          },
-        }));
-      } else {
-        throw new Error('Model download completed without valid URI');
       }
+
+      throw lastError;
     } catch (e: any) {
       delete downloadJobsRef.current[model.id];
+      const cancelled =
+        cancelledDownloadsRef.current[model.id] || e?.message === 'Download cancelled';
+      await FileSystem.deleteAsync(stagingPath, { idempotent: true }).catch(() => undefined);
       setModelStates((prev) => ({
         ...prev,
         [model.id]: {
           ...prev[model.id],
-          status: 'error',
-          error: e.message,
+          status: cancelled ? 'not_downloaded' : 'error',
+          progress: 0,
+          writtenMB: 0,
+          totalMB: model.sizeMB,
+          error: cancelled ? undefined : e?.message || 'Download error',
         },
       }));
-      setErrorMsg(`Download Failed (${model.name}): ${e.message}`);
+      if (!cancelled) {
+        setErrorMsg(`Download Failed (${model.name}): ${e?.message || 'Network error'}`);
+      }
     }
   };
 
-  // Cancel Active Download
+  // Cancel Download
   const cancelDownload = async (model: LLMConfig) => {
+    cancelledDownloadsRef.current[model.id] = true;
     const job = downloadJobsRef.current[model.id];
     if (job) {
       try {
         await job.cancelAsync();
-      } catch (e) {}
+      } catch (e) {
+        console.log('Error cancelling download:', e);
+      }
       delete downloadJobsRef.current[model.id];
     }
-    const path = getModelPath(model.filename);
+
+    const stagingPath = `${getModelPath(model.filename)}.part`;
     try {
-      await FileSystem.deleteAsync(path, { idempotent: true });
+      await FileSystem.deleteAsync(stagingPath, { idempotent: true });
     } catch (e) {}
+
     setModelStates((prev) => ({
       ...prev,
       [model.id]: {
+        ...prev[model.id],
         status: 'not_downloaded',
         progress: 0,
         writtenMB: 0,
         totalMB: model.sizeMB,
+        error: undefined,
       },
     }));
   };
 
-  // Delete Model from storage
+  // Delete Model with safety Alert
   const deleteModel = async (model: LLMConfig) => {
-    try {
-      if (llmContext && activeModelId === model.id) {
-        await llmContext.release();
-        setLlmContext(null);
-        setActiveModelId(null);
-      }
-      const path = getModelPath(model.filename);
-      await FileSystem.deleteAsync(path, { idempotent: true });
-      setModelStates((prev) => ({
-        ...prev,
-        [model.id]: {
-          status: 'not_downloaded',
-          progress: 0,
-          writtenMB: 0,
-          totalMB: model.sizeMB,
-        },
-      }));
-    } catch (e: any) {
-      setErrorMsg(`Delete Failed: ${e.message}`);
+    if (isGenerating) {
+      setErrorMsg('Stop active generation before deleting model weights.');
+      return;
     }
+
+    Alert.alert(
+      'Delete Model',
+      `Delete ${model.name}? You can re-download it anytime.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (llmContext && activeModelId === model.id) {
+                await llmContext.release();
+                setLlmContext(null);
+                setActiveModelId(null);
+              }
+
+              const path = getModelPath(model.filename);
+              await FileSystem.deleteAsync(path, { idempotent: true });
+
+              setModelStates((prev) => ({
+                ...prev,
+                [model.id]: {
+                  status: 'not_downloaded',
+                  progress: 0,
+                  writtenMB: 0,
+                  totalMB: model.sizeMB,
+                },
+              }));
+            } catch (e: any) {
+              setErrorMsg(`Delete Failed: ${e.message}`);
+            }
+          },
+        },
+      ]
+    );
   };
 
-  // Load Model into RAM via llama.rn
+  // Load Model into RAM
   const loadModelIntoRam = async (model: LLMConfig) => {
+    if (isGenerating) {
+      setErrorMsg('Stop generation before switching models.');
+      return;
+    }
+
     try {
       setErrorMsg(null);
       setModelStates((prev) => ({
@@ -300,6 +652,14 @@ export default function App() {
       }
 
       const path = getModelPath(model.filename);
+      const modelInfo = await FileSystem.getInfoAsync(path);
+      if (
+        !modelInfo.exists ||
+        Number((modelInfo as any).size || 0) < model.sizeMB * 1024 * 1024 * 0.85
+      ) {
+        throw new Error('Model file is incomplete. Please download it again.');
+      }
+
       const ctx = await initLlama({
         model: path,
         n_ctx: 2048,
@@ -309,6 +669,7 @@ export default function App() {
 
       setLlmContext(ctx);
       setActiveModelId(model.id);
+      setSelectedModel(model);
 
       setModelStates((prev) => {
         const updated = { ...prev };
@@ -322,11 +683,23 @@ export default function App() {
         return updated;
       });
     } catch (e: any) {
-      setModelStates((prev) => ({
-        ...prev,
-        [model.id]: { ...prev[model.id], status: 'error', error: e.message },
-      }));
-      setErrorMsg(`Model Load Failed: ${e.message}`);
+      setLlmContext(null);
+      setActiveModelId(null);
+      setModelStates((prev) => {
+        const updated = { ...prev };
+        for (const key of Object.keys(updated)) {
+          if (updated[key].status === 'ready') {
+            updated[key] = { ...updated[key], status: 'downloaded' };
+          }
+        }
+        updated[model.id] = {
+          ...updated[model.id],
+          status: 'error',
+          error: e?.message || 'Model loading error',
+        };
+        return updated;
+      });
+      setErrorMsg(`Model Load Failed: ${e?.message || 'Error loading GGUF'}`);
     }
   };
 
@@ -345,15 +718,7 @@ export default function App() {
     }
   };
 
-  // Handle user scroll detection so streaming doesn't yank scroll position
-  const handleScroll = (event: any) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const paddingToBottom = 70;
-    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-    userScrolledUpRef.current = !isAtBottom;
-  };
-
-  // Stop ongoing LLM generation
+  // Stop Generation
   const stopGeneration = async () => {
     if (llmContext && isGenerating) {
       try {
@@ -365,6 +730,14 @@ export default function App() {
     }
   };
 
+  // User Scroll detection
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 80;
+    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    userScrolledUpRef.current = !isAtBottom;
+  };
+
   // Send message and stream inference
   const sendMessage = async (promptOverride?: string) => {
     const text = (promptOverride || inputText).trim();
@@ -372,7 +745,7 @@ export default function App() {
 
     setInputText('');
     setErrorMsg(null);
-    userScrolledUpRef.current = false; // Reset so new message auto-scrolls
+    userScrolledUpRef.current = false;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -384,7 +757,6 @@ export default function App() {
     setIsGenerating(true);
     setStreamingText('');
 
-    // Scroll to bottom when sending
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
@@ -393,37 +765,89 @@ export default function App() {
     const startTime = Date.now();
     let firstTokenTime = 0;
     let tokenCount = 0;
+    let lastStreamUpdateAt = 0;
 
     try {
-      let formattedPrompt = `<|im_start|>system\n${systemPrompt}<|im_end|>\n`;
-      const history = [...messages, userMessage].slice(-6);
-      for (const m of history) {
-        formattedPrompt += `<|im_start|>${m.role}\n${m.content}<|im_end|>\n`;
+      // Build recent conversation turns without exceeding context budget
+      const allConversationMessages = [...messages, userMessage];
+      const turns: Message[][] = [];
+      for (const message of allConversationMessages) {
+        if (message.role === 'user') {
+          turns.push([message]);
+        } else if (turns.length > 0) {
+          turns[turns.length - 1].push(message);
+        }
       }
-      formattedPrompt += `<|im_start|>assistant\n`;
+
+      const recentTurns: Message[][] = [];
+      let historyChars = 0;
+      let historyMessages = 0;
+      const maxHistoryChars = 5200;
+      const maxHistoryMessages = 6;
+
+      for (let i = turns.length - 1; i >= 0; i--) {
+        const turn = turns[i];
+        const turnChars = turn.reduce((sum, msg) => sum + msg.content.length, 0);
+        if (
+          recentTurns.length > 0 &&
+          (historyChars + turnChars > maxHistoryChars ||
+            historyMessages + turn.length > maxHistoryMessages)
+        ) {
+          break;
+        }
+        recentTurns.unshift(turn);
+        historyChars += turnChars;
+        historyMessages += turn.length;
+      }
+
+      const history = recentTurns.flat();
+      const promptMessages = [
+        {
+          role: 'system' as const,
+          content: systemPrompt,
+        },
+        ...history.map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
+      ];
 
       await llmContext.completion(
         {
-          prompt: formattedPrompt,
+          messages: promptMessages,
+          jinja: true,
+          enable_thinking: false,
           n_predict: maxTokens,
-          temperature: temperature,
-          stop: ['<|im_end|>', '<|endoftext|>', '<|im_start|>'],
+          temperature,
+          top_p: 0.8,
+          top_k: 20,
+          min_p: 0,
+          penalty_repeat: 1.05,
+          penalty_last_n: 64,
+          penalty_present: 0,
+          penalty_freq: 0,
         },
         (data) => {
-          const { token } = data;
-          if (tokenCount === 0) {
-            firstTokenTime = Date.now();
-          }
+          const token = data.token;
+          if (!token) return;
+          if (tokenCount === 0) firstTokenTime = Date.now();
           tokenCount++;
           accumulated += token;
-          setStreamingText(accumulated);
+
+          const now = Date.now();
+          if (now - lastStreamUpdateAt >= 50 || token.includes('\n')) {
+            lastStreamUpdateAt = now;
+            setStreamingText(accumulated);
+          }
         }
       );
 
+      setStreamingText(accumulated);
       const endTime = Date.now();
       const durationSec = (endTime - startTime) / 1000;
       const ttftMs = firstTokenTime > 0 ? firstTokenTime - startTime : 0;
-      const tokensPerSec = durationSec > 0 ? parseFloat((tokenCount / durationSec).toFixed(1)) : 0;
+      const tokensPerSec =
+        durationSec > 0 ? parseFloat((tokenCount / durationSec).toFixed(1)) : 0;
 
       if (accumulated.trim()) {
         const assistantMessage: Message = {
@@ -461,1067 +885,1696 @@ export default function App() {
     setStreamingText('');
   };
 
-  const activeState = modelStates[selectedLlm.id] || {
+  const activeState = modelStates[selectedModel.id] || {
     status: 'not_downloaded',
     progress: 0,
     writtenMB: 0,
-    totalMB: selectedLlm.sizeMB,
+    totalMB: selectedModel.sizeMB,
   };
 
-  const isCurrentModelReady = activeState.status === 'ready' && llmContext !== null;
+  const isModelReady = activeState.status === 'ready' && llmContext !== null;
+  const canSend = isModelReady && inputText.trim().length > 0 && !isGenerating;
+  const downloadingCount = Object.values(modelStates).filter((s) => s.status === 'downloading').length;
+
+  const totalStorageMB = Object.values(modelStates).reduce((acc, st) => {
+    return st.status === 'downloaded' || st.status === 'ready' ? acc + (st.writtenMB || 0) : acc;
+  }, 0);
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#080C14" translucent={Platform.OS === 'android'} />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Top App Header */}
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={THEME.colors.bgApp}
+        translucent={Platform.OS === 'android'}
+      />
+
+      <View style={styles.container}>
+        {/* ========================================== */}
+        {/* UNIVERSAL COMPACT TOP HEADER */}
+        {/* ========================================== */}
         <View style={styles.header}>
-          <View style={styles.headerTitleRow}>
-            <View style={styles.logoDot} />
-            <Text style={styles.appTitle}>VERESA</Text>
-            <View style={[styles.statusBadge, isCurrentModelReady ? styles.badgeActive : styles.badgeInactive]}>
-              <View style={[styles.statusDotInner, isCurrentModelReady ? styles.dotInnerActive : styles.dotInnerInactive]} />
-              <Text style={styles.statusBadgeText}>
-                {isCurrentModelReady ? 'READY (RAM)' : activeState.status.toUpperCase()}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.appSubtitle}>At your service!! • Offline Local Qwen2.5</Text>
-        </View>
-
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.scrollArea}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets={true}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          onContentSizeChange={() => {
-            if (!userScrolledUpRef.current) {
-              scrollViewRef.current?.scrollToEnd({ animated: false });
-            }
-          }}
-        >
-          {/* MODEL SELECTION & CONTROL CARD */}
-          <View style={styles.modelCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderLeft}>
-                <Text style={styles.cardTitleIcon}>⚙️</Text>
-                <Text style={styles.cardTitle}>LOCAL ENGINE</Text>
+          <View style={styles.headerBrandRow}>
+            <View style={styles.brandLeft}>
+              <View style={[styles.statusRing, isModelReady ? styles.statusRingReady : styles.statusRingIdle]}>
+                <View style={[styles.statusDot, isModelReady ? styles.statusDotReady : styles.statusDotIdle]} />
               </View>
+              <View>
+                <Text style={styles.brandTitle}>VERESA</Text>
+                <Text style={styles.brandSubtitle}>
+                  {isModelReady ? `Offline • ${selectedModel.name.split(' ')[0]} ${selectedModel.tag}` : 'Private Offline AI'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.headerRightActions}>
+              {/* Quick Model Pill */}
               <TouchableOpacity
-                onPress={() => setShowSettings(!showSettings)}
-                style={styles.settingsBadgeBtn}
+                style={[styles.modelPill, isModelReady ? styles.modelPillReady : styles.modelPillIdle]}
+                onPress={() => setActiveTab('models')}
+                activeOpacity={0.7}
               >
-                <Text style={styles.settingsLink}>{showSettings ? '▲ Hide Settings' : '▼ Model Settings'}</Text>
+                <Text style={[styles.modelPillText, isModelReady ? styles.modelPillTextReady : styles.modelPillTextIdle]}>
+                  {isModelReady ? '● RAM ACTIVE' : activeState.status === 'loading' ? '⏳ LOADING' : activeState.status === 'downloading' ? '📥 DOWNLOADING' : '⚙️ MODELS'}
+                </Text>
               </TouchableOpacity>
-            </View>
 
-            {/* Model Switcher Tabs */}
-            <View style={styles.modelTabs}>
-              {LLM_MODELS.map((model) => {
-                const st = modelStates[model.id] || { status: 'not_downloaded', progress: 0 };
-                const isSelected = selectedLlm.id === model.id;
-                return (
-                  <TouchableOpacity
-                    key={model.id}
-                    style={[
-                      styles.modelTab,
-                      isSelected && styles.modelTabActive,
-                    ]}
-                    onPress={() => setSelectedLlm(model)}
-                  >
-                    <Text style={[styles.modelTabText, isSelected && styles.modelTabTextActive]}>
-                      {model.id === 'uncensored' ? '🔓 Uncensored' : '🛡 Standard'}
-                    </Text>
-
-                    {st.status === 'downloading' && (
-                      <View style={styles.tabBadgeDownloading}>
-                        <Text style={styles.tabBadgeDownloadingText}>{st.progress}%</Text>
-                      </View>
-                    )}
-                    {st.status === 'downloaded' && (
-                      <View style={styles.tabBadgeDownloaded}>
-                        <Text style={styles.tabBadgeDownloadedText}>✓</Text>
-                      </View>
-                    )}
-                    {st.status === 'ready' && (
-                      <View style={styles.tabBadgeReady}>
-                        <Text style={styles.tabBadgeReadyText}>RAM</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <Text style={styles.modelDesc}>{selectedLlm.description}</Text>
-            <Text style={styles.modelMeta}>File: {selectedLlm.filename} • {selectedLlm.sizeEst}</Text>
-
-            {/* Action Buttons & Real Progress Bar */}
-            <View style={styles.actionRow}>
-              {activeState.status === 'not_downloaded' && (
-                <TouchableOpacity style={styles.btnPrimary} onPress={() => downloadModel(selectedLlm)}>
-                  <Text style={styles.btnTextPrimary}>📥 Download Model ({selectedLlm.sizeEst})</Text>
+              {/* Clear / New Chat button */}
+              {activeTab === 'assistant' && messages.length > 0 && (
+                <TouchableOpacity style={styles.newChatBtn} onPress={clearChat} activeOpacity={0.75}>
+                  <Text style={styles.newChatBtnPlus}>+</Text>
+                  <Text style={styles.newChatBtnText}>New</Text>
                 </TouchableOpacity>
               )}
-
-              {activeState.status === 'downloading' && (
-                <View style={styles.downloadCard}>
-                  <View style={styles.downloadHeaderRow}>
-                    <View style={styles.downloadTitleRow}>
-                      <ActivityIndicator color="#38BDF8" size="small" />
-                      <Text style={styles.downloadTitle}>Downloading {selectedLlm.tag}...</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => cancelDownload(selectedLlm)} style={styles.cancelBtn}>
-                      <Text style={styles.cancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Visual Progress Bar Track & Animated Fill */}
-                  <View style={styles.progressBarTrack}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: `${Math.max(3, activeState.progress)}%` },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={styles.progressStatsRow}>
-                    <Text style={styles.progressMbText}>
-                      {activeState.writtenMB > 0 ? `${activeState.writtenMB} MB` : '0 MB'} / {activeState.totalMB || selectedLlm.sizeMB} MB
-                    </Text>
-                    <Text style={styles.progressPercentText}>{activeState.progress}%</Text>
-                  </View>
-                </View>
-              )}
-
-              {activeState.status === 'downloaded' && (
-                <View style={styles.rowBtns}>
-                  <TouchableOpacity style={[styles.btnAccent, { flex: 1, marginRight: 8 }]} onPress={() => loadModelIntoRam(selectedLlm)}>
-                    <Text style={styles.btnTextAccent}>⚡ Load Into RAM</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.btnDanger} onPress={() => deleteModel(selectedLlm)}>
-                    <Text style={styles.btnTextDanger}>🗑 Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {activeState.status === 'loading' && (
-                <View style={styles.downloadProgressBox}>
-                  <ActivityIndicator color="#4ADE80" size="small" />
-                  <Text style={styles.progressText}>Loading GGUF weights into RAM...</Text>
-                </View>
-              )}
-
-              {activeState.status === 'ready' && (
-                <View style={styles.rowBtns}>
-                  <View style={[styles.btnReady, { flex: 1, marginRight: 8 }]}>
-                    <Text style={styles.btnTextReady}>✓ Model Active in Memory</Text>
-                  </View>
-                  <TouchableOpacity style={styles.btnUnload} onPress={() => unloadModel(selectedLlm)}>
-                    <Text style={styles.btnTextUnload}>Unload</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {activeState.status === 'error' && (
-                <View style={styles.rowBtns}>
-                  <TouchableOpacity style={[styles.btnPrimary, { flex: 1, marginRight: 8 }]} onPress={() => downloadModel(selectedLlm)}>
-                    <Text style={styles.btnTextPrimary}>🔄 Retry Download</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.btnDanger} onPress={() => deleteModel(selectedLlm)}>
-                    <Text style={styles.btnTextDanger}>Reset</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
-
-            {/* Collapsible Settings Drawer */}
-            {showSettings && (
-              <View style={styles.settingsBox}>
-                <Text style={styles.settingLabel}>Temperature: {temperature}</Text>
-                <View style={styles.tempButtons}>
-                  {[0.2, 0.7, 1.0].map((t) => (
-                    <TouchableOpacity
-                      key={t}
-                      style={[styles.tempBtn, temperature === t && styles.tempBtnActive]}
-                      onPress={() => setTemperature(t)}
-                    >
-                      <Text style={[styles.tempBtnText, temperature === t && styles.tempBtnTextActive]}>{t}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={[styles.settingLabel, { marginTop: 10 }]}>Max Tokens: {maxTokens}</Text>
-                <View style={styles.tempButtons}>
-                  {[128, 256, 512].map((tok) => (
-                    <TouchableOpacity
-                      key={tok}
-                      style={[styles.tempBtn, maxTokens === tok && styles.tempBtnActive]}
-                      onPress={() => setMaxTokens(tok)}
-                    >
-                      <Text style={[styles.tempBtnText, maxTokens === tok && styles.tempBtnTextActive]}>{tok}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
           </View>
+        </View>
 
-          {/* Error Banner */}
-          {errorMsg && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
-            </View>
-          )}
-
-          {/* DEDICATED SEPARATE CHAT CONTAINER */}
-          <View style={styles.chatSectionContainer}>
-            <View style={styles.chatSectionHeader}>
-              <View style={styles.chatHeaderTitleRow}>
-                <View style={styles.chatDot} />
-                <Text style={styles.chatSectionTitle}>CONVERSATION</Text>
-                {messages.length > 0 && (
-                  <View style={styles.msgCountBadge}>
-                    <Text style={styles.msgCountText}>{messages.length}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Compact Quick Prompts Collapsible Trigger */}
+        {/* ========================================== */}
+        {/* TAB 1: ASSISTANT CONVERSATION SCREEN */}
+        {/* ========================================== */}
+        {activeTab === 'assistant' && (
+          <KeyboardAvoidingView
+            style={styles.tabContentContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            {/* Banner Alert if no model loaded */}
+            {!isModelReady && (
               <TouchableOpacity
-                style={styles.quickPromptsTrigger}
-                onPress={() => setShowPrompts(!showPrompts)}
+                style={styles.bannerAlert}
+                onPress={() => setActiveTab('models')}
+                activeOpacity={0.8}
               >
-                <Text style={styles.quickPromptsTriggerText}>
-                  💡 Prompts {showPrompts ? '▲' : '▼'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Collapsible Sample Prompts Card */}
-            {showPrompts && (
-              <View style={styles.promptsDropdownCard}>
-                <Text style={styles.promptsDropdownTitle}>Tap a quick starter to ask Veresa:</Text>
-                <View style={styles.promptChipsGrid}>
-                  {SAMPLE_PROMPTS.map((prompt, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={styles.promptChip}
-                      onPress={() => {
-                        setShowPrompts(false);
-                        sendMessage(prompt.replace(/^[^\s]+\s/, ''));
-                      }}
-                      disabled={!isCurrentModelReady || isGenerating}
-                    >
-                      <Text style={styles.promptChipText}>{prompt}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.bannerAlertLeft}>
+                  <View style={styles.bannerAlertIconBadge}>
+                    <Text style={styles.bannerAlertIcon}>
+                      {activeState.status === 'downloaded' ? '⚡' : activeState.status === 'downloading' ? '📥' : '🧠'}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.bannerAlertTitle}>
+                      {activeState.status === 'downloaded'
+                        ? 'Model downloaded. Tap to load into RAM.'
+                        : activeState.status === 'downloading'
+                        ? 'Downloading model weights in background...'
+                        : 'No model loaded in RAM'}
+                    </Text>
+                    <Text style={styles.bannerAlertSub}>
+                      {activeState.status === 'downloaded'
+                        ? 'Activate model for instant offline responses'
+                        : 'Tap here to visit Model Library'}
+                    </Text>
+                  </View>
                 </View>
+                <View style={styles.bannerAlertArrowBadge}>
+                  <Text style={styles.bannerAlertChevron}>›</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Error Message */}
+            {errorMsg && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
               </View>
             )}
 
-            {/* Chat Body */}
-            {messages.length === 0 && !streamingText && (
-              <View style={styles.emptyChatBox}>
-                <Text style={styles.emptyChatIcon}>💬</Text>
-                <Text style={styles.emptyChatTitle}>No messages yet</Text>
-                <Text style={styles.emptyChatSub}>
-                  {isCurrentModelReady
-                    ? 'Type below or tap "💡 Prompts" to start a local conversation.'
-                    : 'Load a model into RAM above to begin offline chat.'}
-                </Text>
-              </View>
-            )}
+            {/* Scrollable Conversation Stream */}
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.chatScroll}
+              contentContainerStyle={styles.chatScrollContent}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={true}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+              onContentSizeChange={() => {
+                if (!userScrolledUpRef.current) {
+                  scrollViewRef.current?.scrollToEnd({ animated: false });
+                }
+              }}
+            >
+              {/* First-time Welcome & Empty State */}
+              {messages.length === 0 && !streamingText && (
+                <View style={styles.welcomeContainer}>
+                  <AnimatedOrb isReady={isModelReady} />
 
-            {/* Messages List */}
-            {messages.map((m) => (
-              <View
-                key={m.id}
-                style={[
-                  styles.messageCard,
-                  m.role === 'user' ? styles.userMessageCard : styles.assistantMessageCard,
-                ]}
-              >
-                <View style={styles.messageHeader}>
-                  <Text style={m.role === 'user' ? styles.userRoleText : styles.assistantRoleText}>
-                    {m.role === 'user' ? '👤 YOU' : `🤖 VERESA (${selectedLlm.tag})`}
+                  <Text style={styles.welcomeTitle}>Good day, I'm Veresa</Text>
+                  <Text style={styles.welcomeSubtitle}>
+                    Your private, 100% offline assistant running directly on this phone.
                   </Text>
-                  {m.role === 'assistant' && (
+
+                  <View style={styles.privacyPill}>
+                    <Text style={styles.privacyPillText}>🔒 On-Device Inference • Zero Data Leaves Phone</Text>
+                  </View>
+
+                  {/* Starter Suggestions */}
+                  <Text style={styles.startersHeader}>Suggested Starters</Text>
+                  <View style={styles.startersList}>
+                    {STARTER_PROMPTS.map((item, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[styles.starterCard, !isModelReady && styles.starterCardDisabled]}
+                        onPress={() => sendMessage(item.prompt)}
+                        disabled={!isModelReady || isGenerating}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.starterIconBadge}>
+                          <Text style={styles.starterIcon}>{item.icon}</Text>
+                        </View>
+                        <View style={styles.starterTextGroup}>
+                          <Text style={styles.starterTitle}>{item.title}</Text>
+                          <Text style={styles.starterPromptPreview} numberOfLines={2}>
+                            "{item.prompt}"
+                          </Text>
+                        </View>
+                        <View style={styles.starterArrowBadge}>
+                          <Text style={styles.starterArrowText}>↗</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Chat Message Bubbles */}
+              {messages.map((m) => {
+                const isUser = m.role === 'user';
+                const isExpanded = expandedMetricsId === m.id;
+                return (
+                  <View key={m.id} style={[styles.bubbleWrapper, isUser ? styles.bubbleWrapperUser : styles.bubbleWrapperAssistant]}>
+                    <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
+                      <View style={styles.bubbleHeader}>
+                        <Text style={[styles.roleTag, isUser ? styles.roleTagUser : styles.roleTagAssistant]}>
+                          {isUser ? 'YOU' : `VERESA • ${selectedModel.tag}`}
+                        </Text>
+
+                        {!isUser && (
+                          <View style={styles.bubbleActions}>
+                            {m.metrics && (
+                              <TouchableOpacity
+                                style={styles.actionPillBtn}
+                                onPress={() => setExpandedMetricsId(isExpanded ? null : m.id)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.actionPillBtnText}>{isExpanded ? '✕ Hide' : '⚡ Stats'}</Text>
+                              </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                              style={styles.actionPillBtn}
+                              onPress={() => Share.share({ message: m.content })}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.actionPillBtnText}>↗ Share</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={[styles.messageContentText, isUser ? styles.contentUser : styles.contentAssistant]} selectable>
+                        {m.content}
+                      </Text>
+
+                      {/* Expandable Stats */}
+                      {!isUser && m.metrics && isExpanded && (
+                        <View style={styles.metricsBox}>
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Speed</Text>
+                            <Text style={styles.metricVal}>{m.metrics.tokensPerSec} t/s</Text>
+                          </View>
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>TTFT</Text>
+                            <Text style={styles.metricVal}>{m.metrics.ttftMs}ms</Text>
+                          </View>
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Tokens</Text>
+                            <Text style={styles.metricVal}>{m.metrics.totalTokens}</Text>
+                          </View>
+                          <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Time</Text>
+                            <Text style={styles.metricVal}>{m.metrics.durationSec}s</Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+
+              {/* Streaming Bubble */}
+              {isGenerating && streamingText !== '' && (
+                <View style={styles.streamingWrapper}>
+                  <View style={styles.streamingBubble}>
+                    <View style={styles.streamingHeader}>
+                      <View style={styles.streamingTagGroup}>
+                        <ActivityIndicator size="small" color={THEME.colors.accent} />
+                        <Text style={styles.streamingTagText}>VERESA (Generating...)</Text>
+                      </View>
+                      <TouchableOpacity onPress={stopGeneration} style={styles.streamingStopHeaderBtn} activeOpacity={0.75}>
+                        <View style={styles.streamingMiniStopSquare} />
+                        <Text style={styles.streamingStopHeaderBtnText}>Stop</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.streamingContentText}>{streamingText}</Text>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Anchored Bottom Composer */}
+            <View style={styles.composerContainer}>
+              <View style={styles.composerCard}>
+                <TextInput
+                  style={styles.composerInput}
+                  placeholder={
+                    isModelReady
+                      ? isGenerating
+                        ? 'Veresa is thinking...'
+                        : 'Ask Veresa anything offline...'
+                      : 'Load model in RAM to start chatting...'
+                  }
+                  placeholderTextColor={THEME.colors.textTertiary}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  editable={isModelReady && !isGenerating}
+                  onFocus={() => {
+                    userScrolledUpRef.current = false;
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 200);
+                  }}
+                  multiline
+                  maxLength={2000}
+                />
+
+                <View style={styles.composerButtonSlot}>
+                  {isGenerating ? (
                     <TouchableOpacity
-                      onPress={() => Share.share({ message: m.content })}
-                      style={styles.shareIconBtn}
+                      style={styles.composerStopBtn}
+                      onPress={stopGeneration}
+                      activeOpacity={0.8}
                     >
-                      <Text style={styles.shareText}>Copy/Share</Text>
+                      <View style={styles.stopIconSquare} />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.composerSendBtn,
+                        canSend ? styles.composerSendBtnActive : styles.composerSendBtnDisabled,
+                      ]}
+                      onPress={() => sendMessage()}
+                      disabled={!canSend}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.sendArrowText, canSend ? styles.sendArrowActive : styles.sendArrowDisabled]}>
+                        ↑
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
-
-                <Text style={styles.messageContent}>{m.content}</Text>
-
-                {m.metrics && (
-                  <View style={styles.metricsContainer}>
-                    <View style={styles.metricPill}>
-                      <Text style={styles.metricPillLabel}>Speed</Text>
-                      <Text style={styles.metricPillVal}>{m.metrics.tokensPerSec} t/s</Text>
-                    </View>
-                    <View style={styles.metricPill}>
-                      <Text style={styles.metricPillLabel}>TTFT</Text>
-                      <Text style={styles.metricPillVal}>{m.metrics.ttftMs}ms</Text>
-                    </View>
-                    <View style={styles.metricPill}>
-                      <Text style={styles.metricPillLabel}>Tokens</Text>
-                      <Text style={styles.metricPillVal}>{m.metrics.totalTokens}</Text>
-                    </View>
-                    <View style={styles.metricPill}>
-                      <Text style={styles.metricPillLabel}>Time</Text>
-                      <Text style={styles.metricPillVal}>{m.metrics.durationSec}s</Text>
-                    </View>
-                  </View>
-                )}
               </View>
-            ))}
+            </View>
+          </KeyboardAvoidingView>
+        )}
 
-            {/* Live Streaming Response */}
-            {isGenerating && streamingText !== '' && (
-              <View style={[styles.messageCard, styles.assistantMessageCard, styles.streamingMessageCard]}>
-                <View style={styles.messageHeader}>
-                  <View style={styles.streamingHeaderRow}>
-                    <ActivityIndicator color="#38BDF8" size="small" />
-                    <Text style={styles.assistantRoleText}>🤖 VERESA (Generating...)</Text>
+        {/* ========================================== */}
+        {/* TAB 2: MODEL LIBRARY & DOWNLOAD MANAGER */}
+        {/* ========================================== */}
+        {activeTab === 'models' && (
+          <View style={styles.tabContentContainer}>
+            <ScrollView contentContainerStyle={styles.modelsScrollContent} showsVerticalScrollIndicator={false}>
+              {/* Storage & Memory Overview Header */}
+              <View style={styles.modelsOverviewCard}>
+                <View style={styles.overviewCol}>
+                  <Text style={styles.overviewLabel}>RAM ACTIVE</Text>
+                  <Text style={[styles.overviewVal, isModelReady ? styles.valSuccess : styles.valMuted]}>
+                    {isModelReady ? selectedModel.name.split(' ')[0] : 'None'}
+                  </Text>
+                </View>
+                <View style={styles.overviewDivider} />
+                <View style={styles.overviewCol}>
+                  <Text style={styles.overviewLabel}>STORAGE USED</Text>
+                  <Text style={styles.overviewVal}>
+                    {totalStorageMB > 0 ? `${(totalStorageMB / 1024).toFixed(2)} GB` : '0 GB'}
+                  </Text>
+                </View>
+                <View style={styles.overviewDivider} />
+                <View style={styles.overviewCol}>
+                  <Text style={styles.overviewLabel}>RUNTIME</Text>
+                  <Text style={[styles.overviewVal, styles.valAccent]}>llama.cpp</Text>
+                </View>
+              </View>
+
+              <Text style={styles.sectionHeaderTitle}>AVAILABLE ON-DEVICE MODELS</Text>
+
+              {/* Model Cards */}
+              {LLM_MODELS.map((model) => {
+                const st = modelStates[model.id] || { status: 'not_downloaded', progress: 0, writtenMB: 0, totalMB: model.sizeMB };
+                const isLoaded = st.status === 'ready' && activeModelId === model.id;
+
+                return (
+                  <View key={model.id} style={[styles.modelCard, isLoaded && styles.modelCardActive]}>
+                    <View style={styles.modelCardHeader}>
+                      <View style={styles.modelNameRow}>
+                        <Text style={styles.modelNameText}>{model.name}</Text>
+                        <View
+                          style={[
+                            styles.tagBadge,
+                            model.tag === 'UNFILTERED'
+                              ? styles.tagUnfiltered
+                              : model.tag === 'FAST'
+                              ? styles.tagFast
+                              : styles.tagStandard,
+                          ]}
+                        >
+                          <Text style={styles.tagBadgeText}>{model.tag}</Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.modelStateBadge, isLoaded ? styles.badgeReady : st.status === 'downloaded' ? styles.badgeDownloaded : styles.badgeIdle]}>
+                        <Text style={[styles.modelStateBadgeText, isLoaded ? styles.textReady : st.status === 'downloaded' ? styles.textDownloaded : styles.textIdle]}>
+                          {isLoaded ? '● ACTIVE IN RAM' : st.status === 'loading' ? 'LOADING...' : st.status === 'downloaded' ? 'DOWNLOADED' : st.status === 'downloading' ? 'DOWNLOADING' : 'AVAILABLE'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.modelDescriptionText}>{model.description}</Text>
+
+                    <View style={styles.modelSpecsRow}>
+                      <Text style={styles.modelSpecsText}>📦 {model.sizeEst || `${(model.sizeMB / 1024).toFixed(2)} GB`}</Text>
+                      {model.quant && (
+                        <>
+                          <Text style={styles.modelSpecsDot}>•</Text>
+                          <Text style={styles.modelSpecsText}>{model.quant}</Text>
+                        </>
+                      )}
+                      {model.ramHint && (
+                        <>
+                          <Text style={styles.modelSpecsDot}>•</Text>
+                          <Text style={styles.modelSpecsText}>{model.ramHint}</Text>
+                        </>
+                      )}
+                    </View>
+
+                    {/* Download Progress Bar */}
+                    {st.status === 'downloading' && (
+                      <View style={styles.downloadProgressBox}>
+                        <View style={styles.downloadProgressHeader}>
+                          <View style={styles.downloadingTitleRow}>
+                            <ActivityIndicator size="small" color={THEME.colors.accent} />
+                            <Text style={styles.downloadingTitleText}>Downloading weights...</Text>
+                          </View>
+                          <TouchableOpacity onPress={() => cancelDownload(model)} style={styles.downloadCancelBtn} activeOpacity={0.7}>
+                            <Text style={styles.downloadCancelBtnText}>Cancel</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.progressTrack}>
+                          <View style={[styles.progressFill, { width: `${Math.max(3, st.progress)}%` }]} />
+                        </View>
+
+                        <View style={styles.progressNumbersRow}>
+                          <Text style={styles.progressMbText}>
+                            {st.writtenMB > 0 ? `${st.writtenMB} MB` : '0 MB'} / {st.totalMB || model.sizeMB} MB
+                          </Text>
+                          <Text style={styles.progressPctText}>{st.progress}%</Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Loading State */}
+                    {st.status === 'loading' && (
+                      <View style={styles.modelLoadingBox}>
+                        <ActivityIndicator size="small" color={THEME.colors.success} />
+                        <Text style={styles.modelLoadingText}>Loading model weights into RAM (~2-3s)...</Text>
+                      </View>
+                    )}
+
+                    {/* Actions */}
+                    <View style={styles.modelActionsRow}>
+                      {st.status === 'not_downloaded' && (
+                        <TouchableOpacity style={styles.btnPrimary} onPress={() => downloadModel(model)} activeOpacity={0.8}>
+                          <Text style={styles.btnPrimaryText}>📥 Download Model ({model.sizeEst})</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {st.status === 'downloaded' && (
+                        <View style={styles.buttonSplitRow}>
+                          <TouchableOpacity style={styles.btnSuccess} onPress={() => loadModelIntoRam(model)} activeOpacity={0.8}>
+                            <Text style={styles.btnSuccessText}>⚡ Load Into RAM</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.btnDanger} onPress={() => deleteModel(model)} activeOpacity={0.8}>
+                            <Text style={styles.btnDangerText}>🗑 Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {isLoaded && (
+                        <View style={styles.buttonSplitRow}>
+                          <View style={styles.activeRamBanner}>
+                            <Text style={styles.activeRamBannerText}>✓ Active for Offline Chat</Text>
+                          </View>
+                          <TouchableOpacity style={styles.btnUnload} onPress={() => unloadModel(model)} activeOpacity={0.8}>
+                            <Text style={styles.btnUnloadText}>Unload</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {st.status === 'error' && (
+                        <View style={styles.buttonSplitRow}>
+                          <TouchableOpacity style={styles.btnPrimary} onPress={() => downloadModel(model)} activeOpacity={0.8}>
+                            <Text style={styles.btnPrimaryText}>🔄 Retry Download</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.btnDanger} onPress={() => deleteModel(model)} activeOpacity={0.8}>
+                            <Text style={styles.btnDangerText}>Reset</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                  <TouchableOpacity onPress={stopGeneration} style={styles.stopHeaderBtn}>
-                    <Text style={styles.stopHeaderBtnText}>⏹ Stop</Text>
+                );
+              })}
+
+              <View style={styles.modelNoteBox}>
+                <Text style={styles.modelNoteText}>
+                  💡 <Text style={{ fontWeight: '700' }}>Note:</Text> Only one model is loaded in RAM at a time to preserve device memory and battery life.
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ========================================== */}
+        {/* TAB 3: SETTINGS & INFERENCE PARAMETERS */}
+        {/* ========================================== */}
+        {activeTab === 'settings' && (
+          <View style={styles.tabContentContainer}>
+            <ScrollView contentContainerStyle={styles.settingsScrollContent} showsVerticalScrollIndicator={false}>
+              <Text style={styles.sectionHeaderTitle}>INFERENCE PARAMETERS</Text>
+              <View style={styles.settingsCard}>
+                {/* Temperature */}
+                <View style={styles.settingRowItem}>
+                  <View style={styles.settingLabelRow}>
+                    <Text style={styles.settingLabelTitle}>Temperature</Text>
+                    <Text style={styles.settingCurrentVal}>{temperature}</Text>
+                  </View>
+                  <Text style={styles.settingDescText}>
+                    Controls creativity. Lower values produce deterministic output; higher values allow expressive phrasing.
+                  </Text>
+                  <View style={styles.pillsRow}>
+                    {[
+                      { val: 0.2, label: '0.2 (Precise)' },
+                      { val: 0.7, label: '0.7 (Balanced)' },
+                      { val: 1.0, label: '1.0 (Creative)' },
+                    ].map((opt) => (
+                      <TouchableOpacity
+                        key={opt.val}
+                        style={[styles.pillBtn, temperature === opt.val && styles.pillBtnActive]}
+                        onPress={() => setTemperature(opt.val)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.pillBtnText, temperature === opt.val && styles.pillBtnTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.settingsDivider} />
+
+                {/* Max Tokens */}
+                <View style={styles.settingRowItem}>
+                  <View style={styles.settingLabelRow}>
+                    <Text style={styles.settingLabelTitle}>Max Response Tokens</Text>
+                    <Text style={styles.settingCurrentVal}>{maxTokens}</Text>
+                  </View>
+                  <Text style={styles.settingDescText}>Maximum output tokens generated per reply.</Text>
+                  <View style={styles.pillsRow}>
+                    {[
+                      { val: 256, label: '256 tokens' },
+                      { val: 512, label: '512 tokens' },
+                      { val: 1024, label: '1024 tokens' },
+                    ].map((opt) => (
+                      <TouchableOpacity
+                        key={opt.val}
+                        style={[styles.pillBtn, maxTokens === opt.val && styles.pillBtnActive]}
+                        onPress={() => setMaxTokens(opt.val)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.pillBtnText, maxTokens === opt.val && styles.pillBtnTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <Text style={styles.sectionHeaderTitle}>PERSONALITY & SYSTEM PROMPT</Text>
+              <View style={styles.settingsCard}>
+                <View style={styles.promptHeaderRow}>
+                  <Text style={styles.settingLabelTitle}>System Instructions</Text>
+                  <TouchableOpacity onPress={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)} activeOpacity={0.7}>
+                    <Text style={styles.resetPromptLink}>Reset</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.messageContent}>{streamingText}</Text>
+
+                <TextInput
+                  style={styles.systemPromptInput}
+                  value={systemPrompt}
+                  onChangeText={setSystemPrompt}
+                  multiline
+                  numberOfLines={4}
+                  placeholder="Enter system prompt instructions for Veresa..."
+                  placeholderTextColor={THEME.colors.textTertiary}
+                />
               </View>
-            )}
 
-            {/* EMBEDDED INPUT BAR DIRECTLY INSIDE CHAT CARD */}
-            <View style={styles.cardInputBar}>
-              {messages.length > 0 && !isGenerating && (
-                <TouchableOpacity style={styles.clearBtn} onPress={clearChat}>
-                  <Text style={styles.clearBtnText}>Clear</Text>
-                </TouchableOpacity>
-              )}
+              <Text style={styles.sectionHeaderTitle}>PRIVACY & SYSTEM DIAGNOSTICS</Text>
+              <View style={styles.settingsCard}>
+                <View style={styles.privacyRow}>
+                  <Text style={styles.privacyIconText}>🔒</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.privacyHeading}>100% On-Device Local AI</Text>
+                    <Text style={styles.privacyBodyText}>
+                      Conversations stay strictly on your phone. No telemetry, prompts, or audio ever leave your device.
+                    </Text>
+                  </View>
+                </View>
 
-              <TextInput
-                style={styles.textInput}
-                placeholder={isCurrentModelReady ? (isGenerating ? 'Generating response...' : 'Ask Veresa anything offline...') : 'Load model into RAM first...'}
-                placeholderTextColor="#64748B"
-                value={inputText}
-                onChangeText={setInputText}
-                editable={isCurrentModelReady && !isGenerating}
-                onFocus={() => {
-                  userScrolledUpRef.current = false;
-                  setTimeout(() => {
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
-                  }, 250);
-                }}
-                multiline
-              />
+                <View style={styles.settingsDivider} />
 
-              {isGenerating ? (
-                <TouchableOpacity style={styles.stopBtn} onPress={stopGeneration}>
-                  <Text style={styles.stopBtnText}>⏹ Stop</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    styles.sendBtn,
-                    (!isCurrentModelReady || !inputText.trim()) && styles.sendBtnDisabled,
-                  ]}
-                  onPress={() => sendMessage()}
-                  disabled={!isCurrentModelReady || !inputText.trim()}
-                >
-                  <Text style={styles.sendBtnText}>Send</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+                <View style={styles.diagRow}>
+                  <Text style={styles.diagLabel}>App Version</Text>
+                  <Text style={styles.diagVal}>1.0.0 (Production)</Text>
+                </View>
+                <View style={styles.diagRow}>
+                  <Text style={styles.diagLabel}>Inference Runtime</Text>
+                  <Text style={styles.diagVal}>llama.cpp ARM64</Text>
+                </View>
+                <View style={styles.diagRow}>
+                  <Text style={styles.diagLabel}>Active Model</Text>
+                  <Text style={[styles.diagVal, isModelReady ? styles.valAccent : styles.valMuted]}>
+                    {isModelReady ? selectedModel.name : 'None loaded in RAM'}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        )}
+
+        {/* ========================================== */}
+        {/* MODERN LOW-PROFILE BOTTOM NAVIGATION */}
+        {/* ========================================== */}
+        <View style={styles.bottomNav}>
+          <View style={styles.navRow}>
+            {[
+              { id: 'assistant' as NavigationTab, label: 'Assistant', icon: '💬' },
+              { id: 'models' as NavigationTab, label: 'Models', icon: '🧠' },
+              { id: 'settings' as NavigationTab, label: 'Settings', icon: '⚙️' },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.navTabBtn, isActive && styles.navTabBtnActive]}
+                  onPress={() => setActiveTab(tab.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.navIconContainer}>
+                    <Text style={styles.navIconText}>{tab.icon}</Text>
+                    {tab.id === 'models' && downloadingCount > 0 && (
+                      <View style={styles.navDownloadBadge}>
+                        <Text style={styles.navDownloadBadgeText}>↓</Text>
+                      </View>
+                    )}
+                    {tab.id === 'assistant' && isModelReady && (
+                      <View style={styles.navReadyDot} />
+                    )}
+                  </View>
+                  <Text style={[styles.navLabelText, isActive ? styles.navLabelActive : styles.navLabelInactive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
+// ==========================================
+// 5. STYLES
+// ==========================================
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#080C14',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 0,
-    paddingBottom: Platform.OS === 'android' ? 10 : 0,
+    backgroundColor: THEME.colors.bgApp,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 4 : 0,
   },
   container: {
     flex: 1,
+    backgroundColor: THEME.colors.bgApp,
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
-    backgroundColor: '#0E1626',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#38BDF8',
-    marginRight: 8,
-  },
-  appTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    letterSpacing: 1.2,
+  tabContentContainer: {
     flex: 1,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 5,
-  },
-  statusDotInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  dotInnerActive: {
-    backgroundColor: '#4ADE80',
-  },
-  dotInnerInactive: {
-    backgroundColor: '#94A3B8',
-  },
-  badgeActive: {
-    backgroundColor: 'rgba(74, 222, 128, 0.12)',
-    borderWidth: 1,
-    borderColor: '#4ADE80',
-  },
-  badgeInactive: {
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
-    borderWidth: 1,
-    borderColor: '#475569',
-  },
-  statusBadgeText: {
-    color: '#F8FAFC',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  appSubtitle: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 3,
-  },
-  scrollArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 14,
-    paddingBottom: 80,
   },
 
-  // Model Engine Card
-  modelCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#1E293B',
+  // Header
+  header: {
+    paddingHorizontal: THEME.spacing.lg,
+    paddingTop: THEME.spacing.sm,
+    paddingBottom: THEME.spacing.md,
+    backgroundColor: THEME.colors.bgSurface,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.colors.borderSubtle,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  cardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  cardTitleIcon: {
-    fontSize: 12,
-  },
-  cardTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#94A3B8',
-    letterSpacing: 1,
-  },
-  settingsBadgeBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderRadius: 6,
-  },
-  settingsLink: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  modelTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#080C14',
-    borderRadius: 8,
-    padding: 3,
-    marginBottom: 10,
-    gap: 4,
-  },
-  modelTab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 6,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  modelTabActive: {
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#38BDF8',
-  },
-  modelTabText: {
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  modelTabTextActive: {
-    color: '#F8FAFC',
-    fontWeight: '700',
-  },
-  tabBadgeDownloading: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#38BDF8',
-  },
-  tabBadgeDownloadingText: {
-    color: '#38BDF8',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  tabBadgeDownloaded: {
-    backgroundColor: 'rgba(74, 222, 128, 0.2)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  tabBadgeDownloadedText: {
-    color: '#4ADE80',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  tabBadgeReady: {
-    backgroundColor: 'rgba(74, 222, 128, 0.3)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#4ADE80',
-  },
-  tabBadgeReadyText: {
-    color: '#4ADE80',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  modelDesc: {
-    color: '#CBD5E1',
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  modelMeta: {
-    color: '#64748B',
-    fontSize: 11,
-    marginBottom: 12,
-  },
-  actionRow: {
-    marginTop: 4,
-  },
-  rowBtns: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  btnPrimary: {
-    backgroundColor: '#38BDF8',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  btnTextPrimary: {
-    color: '#080C14',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  btnAccent: {
-    backgroundColor: '#4ADE80',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  btnTextAccent: {
-    color: '#080C14',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  btnDanger: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 1,
-    borderColor: '#EF4444',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  btnTextDanger: {
-    color: '#EF4444',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  btnReady: {
-    backgroundColor: 'rgba(74, 222, 128, 0.15)',
-    borderWidth: 1,
-    borderColor: '#4ADE80',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  btnTextReady: {
-    color: '#4ADE80',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  btnUnload: {
-    backgroundColor: '#1E293B',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-  },
-  btnTextUnload: {
-    color: '#94A3B8',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  downloadCard: {
-    backgroundColor: '#080C14',
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  downloadHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  downloadTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  downloadTitle: {
-    color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  cancelBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderRadius: 4,
-  },
-  cancelBtnText: {
-    color: '#EF4444',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  progressBarTrack: {
-    height: 8,
-    backgroundColor: '#1E293B',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#38BDF8',
-    borderRadius: 4,
-  },
-  progressStatsRow: {
+  headerBrandRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  progressMbText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  progressPercentText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  downloadProgressBox: {
+  brandLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#080C14',
-    padding: 12,
-    borderRadius: 8,
     gap: 10,
   },
-  progressText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  settingsBox: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-  },
-  settingLabel: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  tempButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tempBtn: {
-    backgroundColor: '#080C14',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 6,
-  },
-  tempBtnActive: {
-    backgroundColor: '#38BDF8',
-  },
-  tempBtnText: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  tempBtnTextActive: {
-    color: '#080C14',
-  },
-
-  // Dedicated Chat Container Section
-  chatSectionContainer: {
-    backgroundColor: '#0C1220',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    minHeight: 280,
-  },
-  chatSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 10,
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
-  },
-  chatHeaderTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  chatDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#4ADE80',
-  },
-  chatSectionTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#94A3B8',
-    letterSpacing: 1,
-  },
-  msgCountBadge: {
-    backgroundColor: '#1E293B',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 8,
-  },
-  msgCountText: {
-    color: '#38BDF8',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  quickPromptsTrigger: {
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 14,
-  },
-  quickPromptsTriggerText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-
-  // Collapsible Prompts Dropdown
-  promptsDropdownCard: {
-    backgroundColor: '#080C14',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  promptsDropdownTitle: {
-    color: '#94A3B8',
-    fontSize: 11,
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  promptChipsGrid: {
-    gap: 6,
-  },
-  promptChip: {
-    backgroundColor: '#131D31',
-    borderWidth: 1,
-    borderColor: '#1E2C44',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  promptChipText: {
-    color: '#E2E8F0',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-
-  // Empty State in Chat
-  emptyChatBox: {
+  statusRing: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 16,
   },
-  emptyChatIcon: {
-    fontSize: 28,
-    marginBottom: 8,
+  statusRingReady: {
+    backgroundColor: THEME.colors.successGlow,
   },
-  emptyChatTitle: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
+  statusRingIdle: {
+    backgroundColor: 'rgba(100, 116, 139, 0.2)',
   },
-  emptyChatSub: {
-    color: '#64748B',
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-
-  // Message Cards & High-Contrast Styling
-  messageCard: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-  },
-  userMessageCard: {
-    backgroundColor: '#1D4ED8',
-    alignSelf: 'flex-end',
-    maxWidth: '88%',
-    borderBottomRightRadius: 2,
-  },
-  assistantMessageCard: {
-    backgroundColor: '#111A2E',
-    borderWidth: 1,
-    borderColor: '#1E2E4A',
-    width: '100%',
-    borderBottomLeftRadius: 2,
-  },
-  streamingMessageCard: {
-    borderColor: '#38BDF8',
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  streamingHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  userRoleText: {
-    color: '#BFDBFE',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  assistantRoleText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  shareIconBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: '#1E293B',
+  statusDot: {
+    width: 8,
+    height: 8,
     borderRadius: 4,
   },
-  shareText: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '600',
+  statusDotReady: {
+    backgroundColor: THEME.colors.success,
   },
-  messageContent: {
-    color: '#F8FAFC',
-    fontSize: 13.5,
-    lineHeight: 21,
+  statusDotIdle: {
+    backgroundColor: THEME.colors.textSecondary,
   },
-
-  // Metric Pills inside Assistant Bubble
-  metricsContainer: {
+  brandTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: THEME.colors.textPrimary,
+    letterSpacing: 1.2,
+  },
+  brandSubtitle: {
+    fontSize: 11,
+    color: THEME.colors.textSecondary,
+    marginTop: 1,
+  },
+  headerRightActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
+    alignItems: 'center',
+    gap: 8,
   },
-  metricPill: {
-    backgroundColor: '#080C14',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  modelPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: THEME.radii.sm,
+    borderWidth: 1,
+  },
+  modelPillReady: {
+    backgroundColor: THEME.colors.successGlow,
+    borderColor: 'rgba(74, 222, 128, 0.4)',
+  },
+  modelPillIdle: {
+    backgroundColor: THEME.colors.bgCard,
+    borderColor: THEME.colors.borderSubtle,
+  },
+  modelPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  modelPillTextReady: {
+    color: THEME.colors.success,
+  },
+  modelPillTextIdle: {
+    color: THEME.colors.textSecondary,
+  },
+  newChatBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: THEME.radii.full,
   },
-  metricPillLabel: {
-    color: '#64748B',
-    fontSize: 9.5,
-    fontWeight: '600',
+  newChatBtnPlus: {
+    color: THEME.colors.accent,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: -1,
   },
-  metricPillVal: {
-    color: '#4ADE80',
-    fontSize: 10,
+  newChatBtnText: {
+    color: THEME.colors.accent,
+    fontSize: 11.5,
     fontWeight: '700',
   },
 
-  // Error Banner
-  errorBanner: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  // Banner Alerts
+  bannerAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(56, 189, 248, 0.2)',
+    paddingHorizontal: THEME.spacing.lg,
+    paddingVertical: THEME.spacing.sm + 2,
+  },
+  bannerAlertLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  bannerAlertIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
     borderWidth: 1,
-    borderColor: '#EF4444',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerAlertIcon: {
+    fontSize: 16,
+  },
+  bannerAlertTitle: {
+    color: THEME.colors.accent,
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  bannerAlertSub: {
+    color: THEME.colors.textSecondary,
+    fontSize: 11,
+    marginTop: 1.5,
+  },
+  bannerAlertArrowBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  bannerAlertChevron: {
+    color: THEME.colors.accent,
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: -2,
+    marginLeft: 1,
+  },
+  errorBanner: {
+    backgroundColor: THEME.colors.dangerGlow,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    padding: THEME.spacing.sm,
+    marginHorizontal: THEME.spacing.md,
+    marginTop: THEME.spacing.sm,
+    borderRadius: THEME.radii.md,
   },
   errorText: {
     color: '#FCA5A5',
     fontSize: 12,
   },
 
-  // Embedded Chat Input Bar inside the Card
-  cardInputBar: {
-    flexDirection: 'row',
+  // Chat Scroll & Welcome
+  chatScroll: {
+    flex: 1,
+  },
+  chatScrollContent: {
+    paddingVertical: THEME.spacing.md,
+    paddingBottom: THEME.spacing.xl,
+  },
+  welcomeContainer: {
+    paddingHorizontal: THEME.spacing.lg,
     alignItems: 'center',
-    paddingTop: 12,
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
+    paddingTop: THEME.spacing.sm,
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: THEME.colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  welcomeSubtitle: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: THEME.colors.textSecondary,
+    textAlign: 'center',
+    maxWidth: 280,
+    marginBottom: 14,
+  },
+  privacyPill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: THEME.radii.full,
+    marginBottom: 24,
+  },
+  privacyPillText: {
+    color: THEME.colors.textTertiary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  startersHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.textSecondary,
+    letterSpacing: 1,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  startersList: {
+    width: '100%',
     gap: 8,
   },
-  clearBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  clearBtnText: {
-    color: '#EF4444',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  textInput: {
-    flex: 1,
-    backgroundColor: '#080C14',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#F8FAFC',
-    fontSize: 13,
+  starterCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.bgCard,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    maxHeight: 80,
-  },
-  sendBtn: {
-    backgroundColor: '#38BDF8',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  sendBtnDisabled: {
-    backgroundColor: '#1E293B',
-  },
-  sendBtnText: {
-    color: '#080C14',
-    fontWeight: '800',
-    fontSize: 12,
-  },
-  stopBtn: {
-    backgroundColor: '#EF4444',
+    borderColor: THEME.colors.borderSubtle,
+    borderRadius: THEME.radii.lg,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  starterCardDisabled: {
+    opacity: 0.5,
+  },
+  starterIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stopBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 12,
+  starterIcon: {
+    fontSize: 18,
   },
-  stopHeaderBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  starterTextGroup: {
+    flex: 1,
+  },
+  starterTitle: {
+    color: THEME.colors.textPrimary,
+    fontSize: 13.5,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  starterPromptPreview: {
+    color: THEME.colors.textSecondary,
+    fontSize: 11.5,
+    lineHeight: 16,
+  },
+  starterArrowBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
-    borderColor: '#EF4444',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  starterArrowText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  // Message Bubbles
+  bubbleWrapper: {
+    marginVertical: THEME.spacing.xs,
+    paddingHorizontal: THEME.spacing.md,
+  },
+  bubbleWrapperUser: {
+    alignItems: 'flex-end',
+  },
+  bubbleWrapperAssistant: {
+    alignItems: 'flex-start',
+  },
+  bubble: {
+    borderRadius: THEME.radii.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  bubbleUser: {
+    backgroundColor: THEME.colors.userBubble,
+    maxWidth: '86%',
+    borderBottomRightRadius: THEME.radii.xs,
+  },
+  bubbleAssistant: {
+    backgroundColor: THEME.colors.assistantBubble,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    width: '100%',
+    borderBottomLeftRadius: THEME.radii.xs,
+  },
+  bubbleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  roleTag: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  roleTagUser: {
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  roleTagAssistant: {
+    color: THEME.colors.accent,
+  },
+  bubbleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  actionPillBtn: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: THEME.radii.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  stopHeaderBtnText: {
-    color: '#EF4444',
+  actionPillBtnText: {
+    color: THEME.colors.textSecondary,
     fontSize: 10,
     fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  messageContentText: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  contentUser: {
+    color: THEME.colors.userBubbleText,
+  },
+  contentAssistant: {
+    color: THEME.colors.assistantBubbleText,
+  },
+  metricsBox: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: THEME.colors.borderSubtle,
+  },
+  metricItem: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: THEME.radii.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  metricLabel: {
+    color: THEME.colors.textTertiary,
+    fontSize: 9.5,
+    fontWeight: '600',
+  },
+  metricVal: {
+    color: THEME.colors.success,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  // Streaming Bubble
+  streamingWrapper: {
+    marginVertical: THEME.spacing.xs,
+    paddingHorizontal: THEME.spacing.md,
+  },
+  streamingBubble: {
+    backgroundColor: THEME.colors.assistantBubble,
+    borderWidth: 1,
+    borderColor: THEME.colors.accent,
+    borderRadius: THEME.radii.lg,
+    borderBottomLeftRadius: THEME.radii.xs,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  streamingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  streamingTagGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  streamingTagText: {
+    color: THEME.colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  streamingStopHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: THEME.colors.dangerGlow,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: THEME.radii.full,
+  },
+  streamingMiniStopSquare: {
+    width: 6,
+    height: 6,
+    backgroundColor: THEME.colors.danger,
+    borderRadius: 1.5,
+  },
+  streamingStopHeaderBtnText: {
+    color: THEME.colors.danger,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  streamingContentText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: THEME.colors.assistantBubbleText,
+  },
+
+  // Anchored Bottom Composer
+  composerContainer: {
+    paddingHorizontal: THEME.spacing.md,
+    paddingVertical: THEME.spacing.sm,
+    backgroundColor: THEME.colors.bgSurface,
+    borderTopWidth: 1,
+    borderTopColor: THEME.colors.borderSubtle,
+  },
+  composerCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: THEME.colors.bgCard,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 6,
+    minHeight: 48,
+    maxHeight: 120,
+  },
+  composerInput: {
+    flex: 1,
+    color: THEME.colors.textPrimary,
+    fontSize: 14.5,
+    lineHeight: 20,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingRight: 8,
+  },
+  composerButtonSlot: {
+    paddingBottom: 2,
+    paddingLeft: 4,
+  },
+  composerSendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  composerSendBtnActive: {
+    backgroundColor: THEME.colors.accent,
+    shadowColor: THEME.colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  composerSendBtnDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  sendArrowText: {
+    fontSize: 19,
+    fontWeight: '900',
+    lineHeight: 21,
+    marginTop: -2,
+    textAlign: 'center',
+  },
+  sendArrowActive: {
+    color: '#080C14',
+  },
+  sendArrowDisabled: {
+    color: 'rgba(255, 255, 255, 0.2)',
+  },
+  composerStopBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EF4444',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  stopIconSquare: {
+    width: 12,
+    height: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2.5,
+  },
+
+  // Models Screen Styles
+  modelsScrollContent: {
+    padding: THEME.spacing.lg,
+    paddingBottom: 40,
+  },
+  modelsOverviewCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: THEME.colors.bgSurface,
+    borderRadius: THEME.radii.lg,
+    padding: THEME.spacing.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    marginBottom: THEME.spacing.lg,
+  },
+  overviewCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  overviewDivider: {
+    width: 1,
+    backgroundColor: THEME.colors.borderSubtle,
+    marginVertical: 4,
+  },
+  overviewLabel: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: THEME.colors.textTertiary,
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  overviewVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textPrimary,
+  },
+  valSuccess: { color: THEME.colors.success },
+  valMuted: { color: THEME.colors.textSecondary },
+  valAccent: { color: THEME.colors.accent },
+
+  sectionHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: THEME.colors.textSecondary,
+    letterSpacing: 1,
+    marginBottom: THEME.spacing.sm,
+    paddingLeft: 2,
+  },
+  modelCard: {
+    backgroundColor: THEME.colors.bgCard,
+    borderRadius: THEME.radii.lg,
+    padding: THEME.spacing.lg,
+    marginBottom: THEME.spacing.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+  },
+  modelCardActive: {
+    borderColor: 'rgba(74, 222, 128, 0.4)',
+    backgroundColor: 'rgba(19, 30, 51, 0.95)',
+  },
+  modelCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  modelNameRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginRight: 8,
+  },
+  modelNameText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: THEME.colors.textPrimary,
+  },
+  tagBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: THEME.radii.sm,
+  },
+  tagStandard: { backgroundColor: 'rgba(56, 189, 248, 0.15)' },
+  tagUnfiltered: { backgroundColor: 'rgba(239, 68, 68, 0.18)' },
+  tagFast: { backgroundColor: 'rgba(74, 222, 128, 0.18)' },
+  tagUncensored: { backgroundColor: 'rgba(245, 158, 11, 0.15)' },
+  tagBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: THEME.colors.textPrimary,
+  },
+  modelStateBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: THEME.radii.sm,
+    borderWidth: 1,
+  },
+  badgeReady: {
+    backgroundColor: THEME.colors.successGlow,
+    borderColor: 'rgba(74, 222, 128, 0.5)',
+  },
+  badgeDownloaded: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  badgeIdle: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modelStateBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  textReady: { color: THEME.colors.success },
+  textDownloaded: { color: THEME.colors.accent },
+  textIdle: { color: THEME.colors.textSecondary },
+
+  modelDescriptionText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: THEME.colors.textSecondary,
+    marginBottom: 10,
+  },
+  modelSpecsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 14,
+  },
+  modelSpecsText: {
+    fontSize: 11,
+    color: THEME.colors.textTertiary,
+  },
+  modelSpecsDot: {
+    color: THEME.colors.textTertiary,
+  },
+  downloadProgressBox: {
+    backgroundColor: THEME.colors.bgApp,
+    borderRadius: THEME.radii.md,
+    padding: THEME.spacing.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    marginBottom: 12,
+  },
+  downloadProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  downloadingTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  downloadingTitleText: {
+    color: THEME.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  downloadCancelBtn: {
+    backgroundColor: THEME.colors.dangerGlow,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: THEME.radii.sm,
+  },
+  downloadCancelBtnText: {
+    color: THEME.colors.danger,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: THEME.colors.borderSubtle,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: THEME.colors.accent,
+    borderRadius: 3,
+  },
+  progressNumbersRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  progressMbText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  progressPctText: {
+    color: THEME.colors.accent,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  modelLoadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.bgApp,
+    padding: 12,
+    borderRadius: THEME.radii.md,
+    gap: 10,
+    marginBottom: 12,
+  },
+  modelLoadingText: {
+    color: THEME.colors.success,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modelActionsRow: {
+    marginTop: 2,
+  },
+  buttonSplitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  btnPrimary: {
+    backgroundColor: THEME.colors.accent,
+    paddingVertical: 12,
+    borderRadius: THEME.radii.md,
+    alignItems: 'center',
+  },
+  btnPrimaryText: {
+    color: THEME.colors.bgApp,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  btnSuccess: {
+    flex: 1,
+    backgroundColor: THEME.colors.success,
+    paddingVertical: 11,
+    borderRadius: THEME.radii.md,
+    alignItems: 'center',
+  },
+  btnSuccessText: {
+    color: THEME.colors.bgApp,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  btnDanger: {
+    backgroundColor: THEME.colors.dangerGlow,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: THEME.radii.md,
+    alignItems: 'center',
+  },
+  btnDangerText: {
+    color: THEME.colors.danger,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  activeRamBanner: {
+    flex: 1,
+    backgroundColor: THEME.colors.successGlow,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 222, 128, 0.4)',
+    paddingVertical: 11,
+    borderRadius: THEME.radii.md,
+    alignItems: 'center',
+  },
+  activeRamBannerText: {
+    color: THEME.colors.success,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  btnUnload: {
+    backgroundColor: THEME.colors.bgSurface,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: THEME.radii.md,
+  },
+  btnUnloadText: {
+    color: THEME.colors.textSecondary,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  modelNoteBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: THEME.radii.md,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    marginTop: THEME.spacing.sm,
+  },
+  modelNoteText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 11.5,
+    lineHeight: 17,
+  },
+
+  // Settings Styles
+  settingsScrollContent: {
+    padding: THEME.spacing.lg,
+    paddingBottom: 40,
+  },
+  settingsCard: {
+    backgroundColor: THEME.colors.bgCard,
+    borderRadius: THEME.radii.lg,
+    padding: THEME.spacing.lg,
+    marginBottom: THEME.spacing.xl,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+  },
+  settingRowItem: {
+    gap: 8,
+  },
+  settingLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingLabelTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: THEME.colors.textPrimary,
+  },
+  settingCurrentVal: {
+    color: THEME.colors.accent,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  settingDescText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: THEME.colors.textSecondary,
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  pillBtn: {
+    flex: 1,
+    backgroundColor: THEME.colors.bgApp,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    borderRadius: THEME.radii.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  pillBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: THEME.colors.accent,
+  },
+  pillBtnText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pillBtnTextActive: {
+    color: THEME.colors.accent,
+    fontWeight: '700',
+  },
+  settingsDivider: {
+    height: 1,
+    backgroundColor: THEME.colors.borderSubtle,
+    marginVertical: 14,
+  },
+  promptHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resetPromptLink: {
+    color: THEME.colors.accent,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  systemPromptInput: {
+    backgroundColor: THEME.colors.bgApp,
+    borderRadius: THEME.radii.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderSubtle,
+    padding: 12,
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    lineHeight: 19,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  privacyRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  privacyIconText: {
+    fontSize: 22,
+    marginTop: 2,
+  },
+  privacyHeading: {
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  privacyBodyText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  diagRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 3,
+  },
+  diagLabel: {
+    color: THEME.colors.textSecondary,
+    fontSize: 13,
+  },
+  diagVal: {
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Bottom Navigation
+  bottomNav: {
+    backgroundColor: THEME.colors.bgSurface,
+    borderTopWidth: 1,
+    borderTopColor: THEME.colors.borderSubtle,
+    paddingTop: THEME.spacing.xs,
+    paddingBottom: THEME.spacing.sm,
+  },
+  navRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: THEME.spacing.md,
+  },
+  navTabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: THEME.radii.md,
+  },
+  navTabBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+  },
+  navIconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navIconText: {
+    fontSize: 18,
+    marginBottom: 2,
+  },
+  navLabelText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  navLabelActive: {
+    color: THEME.colors.accent,
+    fontWeight: '700',
+  },
+  navLabelInactive: {
+    color: THEME.colors.textSecondary,
+  },
+  navDownloadBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -6,
+    backgroundColor: THEME.colors.accent,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navDownloadBadgeText: {
+    color: THEME.colors.bgApp,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  navReadyDot: {
+    position: 'absolute',
+    top: 0,
+    right: -4,
+    backgroundColor: THEME.colors.success,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 });
