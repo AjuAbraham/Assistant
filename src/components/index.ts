@@ -7,4 +7,6 @@ export * from './Header';
 export * from './Composer';
 export * from './MessageItem';
 export * from './ModelCard';
+export * from './SpeechModelCard';
 export * from './BottomNav';
+export * from './voice';

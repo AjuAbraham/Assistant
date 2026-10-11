@@ -54,3 +54,16 @@ export type NavigationTab = 'assistant' | 'models' | 'settings';
 export type ParsedSegment =
   | { type: 'text'; content: string }
   | { type: 'code'; language: string; code: string };
+
+export type VoiceInputState =
+  | 'idle'
+  | 'requestingPermission'
+  | 'recording'
+  | 'transcribing'
+  | 'transcriptReady'
+  | 'error';
+
+export type RecordingResult = {
+  uri: string;
+  durationMs: number;
+};

@@ -19,6 +19,13 @@ import { LLM_MODELS, DEFAULT_SYSTEM_PROMPT } from './src/constants/models';
 import { buildFormattedChatPrompt, stripThinking } from './src/utils/prompt';
 import { Header, BottomNav } from './src/components';
 import { AssistantScreen, ModelsScreen, SettingsScreen } from './src/screens';
+import { useVoiceInput } from './src/hooks/useVoiceInput';
+import { SPEECH_MODEL } from './src/constants/speechModels';
+import {
+  isSpeechModelDownloaded,
+  downloadSpeechModel,
+  deleteSpeechModel,
+} from './src/services/voice/speechModelManager';
 
 export default function App() {
   // Navigation Tab
@@ -32,6 +39,14 @@ export default function App() {
       initial[m.id] = { status: 'not_downloaded', progress: 0, writtenMB: 0, totalMB: m.sizeMB };
     }
     return initial;
+  });
+
+  // Speech Recognition Model State (Whisper tiny.en)
+  const [speechModelState, setSpeechModelState] = useState<ModelState>({
+    status: 'not_downloaded',
+    progress: 0,
+    writtenMB: 0,
+    totalMB: SPEECH_MODEL.sizeMB,
   });
 
   // Llama Runtime Context
@@ -53,6 +68,18 @@ export default function App() {
   const [maxTokens, setMaxTokens] = useState<number>(1024);
   const [systemPrompt, setSystemPrompt] = useState<string>(DEFAULT_SYSTEM_PROMPT);
 
+  // Voice Input (Offline Whisper STT)
+  const {
+    isRecording,
+    isTranscribing,
+    transcriptionStatus,
+    recordingDurationSec,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    errorMessage: voiceError,
+  } = useVoiceInput();
+
   // References
   const scrollViewRef = useRef<ScrollView>(null);
   const userScrolledUpRef = useRef<boolean>(false);
@@ -65,7 +92,22 @@ export default function App() {
 
   useEffect(() => {
     checkAllModels();
+    checkSpeechModel();
   }, []);
+
+  const checkSpeechModel = async () => {
+    try {
+      const isDownloaded = await isSpeechModelDownloaded();
+      if (isDownloaded) {
+        setSpeechModelState({
+          status: 'downloaded',
+          progress: 100,
+          writtenMB: SPEECH_MODEL.sizeMB,
+          totalMB: SPEECH_MODEL.sizeMB,
+        });
+      }
+    } catch (_) {}
+  };
 
   useEffect(() => {
     try {
@@ -371,6 +413,70 @@ export default function App() {
               }));
             } catch (e: any) {
               setErrorMsg(`Error deleting model: ${e?.message}`);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Download Speech Recognition Model (Whisper tiny.en)
+  const handleDownloadSpeechModel = async () => {
+    try {
+      setSpeechModelState({
+        status: 'downloading',
+        progress: 0,
+        writtenMB: 0,
+        totalMB: SPEECH_MODEL.sizeMB,
+      });
+
+      await downloadSpeechModel((pct, writtenMB, totalMB) => {
+        setSpeechModelState({
+          status: 'downloading',
+          progress: pct,
+          writtenMB,
+          totalMB,
+        });
+      });
+
+      setSpeechModelState({
+        status: 'downloaded',
+        progress: 100,
+        writtenMB: SPEECH_MODEL.sizeMB,
+        totalMB: SPEECH_MODEL.sizeMB,
+      });
+    } catch (e: any) {
+      console.error('[App] Failed to download speech model:', e);
+      setSpeechModelState((prev) => ({
+        ...prev,
+        status: 'error',
+        error: e?.message || 'Download failed',
+      }));
+      setErrorMsg(`Voice Model Download Failed: ${e?.message || 'Network error'}`);
+    }
+  };
+
+  // Delete Speech Recognition Model
+  const handleDeleteSpeechModel = () => {
+    Alert.alert(
+      'Delete Voice Model?',
+      `Are you sure you want to delete ${SPEECH_MODEL.name}? You will need to re-download it to use offline voice input.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteSpeechModel();
+              setSpeechModelState({
+                status: 'not_downloaded',
+                progress: 0,
+                writtenMB: 0,
+                totalMB: SPEECH_MODEL.sizeMB,
+              });
+            } catch (e: any) {
+              setErrorMsg(`Error deleting voice model: ${e?.message}`);
             }
           },
         },
@@ -737,9 +843,13 @@ export default function App() {
   const canSend = isModelReady && inputText.trim().length > 0 && !isGenerating;
   const downloadingCount = Object.values(modelStates).filter((s) => s.status === 'downloading').length;
 
-  const totalStorageMB = Object.values(modelStates).reduce((acc, st) => {
-    return st.status === 'downloaded' || st.status === 'ready' ? acc + (st.writtenMB || 0) : acc;
-  }, 0);
+  const totalStorageMB =
+    Object.values(modelStates).reduce((acc, st) => {
+      return st.status === 'downloaded' || st.status === 'ready' ? acc + (st.writtenMB || 0) : acc;
+    }, 0) +
+    (speechModelState.status === 'downloaded' || speechModelState.status === 'ready'
+      ? speechModelState.writtenMB || SPEECH_MODEL.sizeMB
+      : 0);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -766,7 +876,7 @@ export default function App() {
           <AssistantScreen
             isModelReady={isModelReady}
             activeState={activeState}
-            errorMsg={errorMsg}
+            errorMsg={errorMsg || voiceError}
             messages={messages}
             streamingText={streamingText}
             isGenerating={isGenerating}
@@ -784,6 +894,26 @@ export default function App() {
             scrollViewRef={scrollViewRef}
             userScrolledUpRef={userScrolledUpRef}
             onScroll={handleScroll}
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            transcriptionStatus={transcriptionStatus}
+            recordingDurationSec={recordingDurationSec}
+            onStartRecording={startRecording}
+            onStopRecording={async () => {
+              const transcript = await stopRecording();
+              checkSpeechModel();
+              if (transcript && transcript.trim()) {
+                const text = transcript.trim();
+                if (isModelReady) {
+                  // Direct-send to AI immediately
+                  sendMessage(text);
+                } else {
+                  setInputText(text);
+                  Alert.alert('Model Not Loaded', 'Please load a model first to chat with Veresa.');
+                }
+              }
+            }}
+            onCancelRecording={cancelRecording}
           />
         )}
 
@@ -801,6 +931,9 @@ export default function App() {
             onLoadModel={loadModelIntoRam}
             onUnloadModel={unloadModel}
             onDeleteModel={deleteModel}
+            speechModelState={speechModelState}
+            onDownloadSpeechModel={handleDownloadSpeechModel}
+            onDeleteSpeechModel={handleDeleteSpeechModel}
           />
         )}
 

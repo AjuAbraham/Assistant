@@ -38,6 +38,13 @@ interface AssistantScreenProps {
   scrollViewRef: React.RefObject<ScrollView | null>;
   userScrolledUpRef: React.MutableRefObject<boolean>;
   onScroll: (event: any) => void;
+  isRecording?: boolean;
+  isTranscribing?: boolean;
+  transcriptionStatus?: string | null;
+  recordingDurationSec?: number;
+  onStartRecording?: () => void;
+  onStopRecording?: () => void;
+  onCancelRecording?: () => void;
 }
 
 export function AssistantScreen({
@@ -61,6 +68,13 @@ export function AssistantScreen({
   scrollViewRef,
   userScrolledUpRef,
   onScroll,
+  isRecording = false,
+  isTranscribing = false,
+  transcriptionStatus,
+  recordingDurationSec = 0,
+  onStartRecording,
+  onStopRecording,
+  onCancelRecording,
 }: AssistantScreenProps) {
   return (
     <KeyboardAvoidingView
@@ -202,6 +216,13 @@ export function AssistantScreen({
         isGenerating={isGenerating}
         canSend={canSend}
         isKeyboardVisible={isKeyboardVisible}
+        isRecording={isRecording}
+        isTranscribing={isTranscribing}
+        transcriptionStatus={transcriptionStatus}
+        recordingDurationSec={recordingDurationSec}
+        onStartRecording={onStartRecording}
+        onStopRecording={onStopRecording}
+        onCancelRecording={onCancelRecording}
         onFocus={() => {
           userScrolledUpRef.current = false;
           setTimeout(() => {

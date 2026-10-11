@@ -44,3 +44,57 @@ export function CheckIcon({ size = 11, color = '#10B981' }: { size?: number; col
     <Text style={{ fontSize: size, color, fontWeight: '900', lineHeight: size + 2 }}>✓</Text>
   );
 }
+
+export function MicIcon({ size = 16, color = '#38BDF8' }: { size?: number; color?: string }) {
+  const capsuleWidth = Math.round(size * 0.42);
+  const capsuleHeight = Math.round(size * 0.62);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Mic capsule */}
+      <View
+        style={{
+          width: capsuleWidth,
+          height: capsuleHeight,
+          borderRadius: capsuleWidth / 2,
+          backgroundColor: color,
+          marginTop: -2,
+        }}
+      />
+      {/* Stand arc */}
+      <View
+        style={{
+          position: 'absolute',
+          top: Math.round(size * 0.2),
+          width: Math.round(size * 0.72),
+          height: Math.round(size * 0.48),
+          borderBottomLeftRadius: Math.round(size * 0.36),
+          borderBottomRightRadius: Math.round(size * 0.36),
+          borderWidth: 1.6,
+          borderTopWidth: 0,
+          borderColor: color,
+        }}
+      />
+      {/* Stand stem */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 1.5,
+          width: 1.6,
+          height: Math.round(size * 0.2),
+          backgroundColor: color,
+        }}
+      />
+      {/* Stand base line */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          width: Math.round(size * 0.5),
+          height: 1.6,
+          backgroundColor: color,
+          borderRadius: 1,
+        }}
+      />
+    </View>
+  );
+}
