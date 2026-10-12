@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   SafeAreaView,
   StatusBar,
@@ -9,45 +9,90 @@ import {
   Alert,
   Clipboard,
   StyleSheet,
-} from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
-import { initLlama, LlamaContext } from 'llama.rn';
+} from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import { initLlama, LlamaContext } from "llama.rn";
 
-import { THEME } from './src/theme/tokens';
-import { LLMConfig, ModelState, Message, NavigationTab } from './src/types';
-import { LLM_MODELS, DEFAULT_SYSTEM_PROMPT } from './src/constants/models';
-import { buildFormattedChatPrompt, stripThinking } from './src/utils/prompt';
-import { Header, BottomNav } from './src/components';
-import { AssistantScreen, ModelsScreen, SettingsScreen } from './src/screens';
-import { useVoiceInput } from './src/hooks/useVoiceInput';
-import { SPEECH_MODEL } from './src/constants/speechModels';
+import { THEME } from "./src/theme/tokens";
+import { LLMConfig, ModelState, Message, NavigationTab } from "./src/types";
+import { LLM_MODELS, DEFAULT_SYSTEM_PROMPT } from "./src/constants/models";
+import { buildFormattedChatPrompt, stripThinking } from "./src/utils/prompt";
+import { Header, BottomNav } from "./src/components";
+import { AssistantScreen, ModelsScreen, SettingsScreen } from "./src/screens";
+import { useVoiceInput } from "./src/hooks/useVoiceInput";
+import { SPEECH_MODEL } from "./src/constants/speechModels";
 import {
   isSpeechModelDownloaded,
   downloadSpeechModel,
   deleteSpeechModel,
-} from './src/services/voice/speechModelManager';
+} from "./src/services/voice/speechModelManager";
+import {
+  DEFAULT_TTS_SETTINGS,
+  KOKORO_VOICES,
+  FIXED_PREVIEW_TEXT,
+  KokoroVoiceMetadata,
+  TTS_MODEL_ASSETS,
+  TtsSettings,
+} from "./src/constants/tts";
+import {
+  loadTtsSettings,
+  saveTtsSettings,
+} from "./src/services/voice/ttsSettingsManager";
+import {
+  isTtsModelDownloaded,
+  downloadTtsModel,
+  deleteTtsModel,
+  getTtsModelDirectory,
+} from "./src/services/voice/ttsModelManager";
+import { kokoroTtsService } from "./src/services/voice/kokoroTtsService";
 
 export default function App() {
   // Navigation Tab
-  const [activeTab, setActiveTab] = useState<NavigationTab>('assistant');
+  const [activeTab, setActiveTab] = useState<NavigationTab>("assistant");
 
   // Models State
   const [selectedModel, setSelectedModel] = useState<LLMConfig>(LLM_MODELS[0]);
-  const [modelStates, setModelStates] = useState<Record<string, ModelState>>(() => {
-    const initial: Record<string, ModelState> = {};
-    for (const m of LLM_MODELS) {
-      initial[m.id] = { status: 'not_downloaded', progress: 0, writtenMB: 0, totalMB: m.sizeMB };
-    }
-    return initial;
-  });
+  const [modelStates, setModelStates] = useState<Record<string, ModelState>>(
+    () => {
+      const initial: Record<string, ModelState> = {};
+      for (const m of LLM_MODELS) {
+        initial[m.id] = {
+          status: "not_downloaded",
+          progress: 0,
+          writtenMB: 0,
+          totalMB: m.sizeMB,
+        };
+      }
+      return initial;
+    },
+  );
 
   // Speech Recognition Model State (Whisper tiny.en)
   const [speechModelState, setSpeechModelState] = useState<ModelState>({
-    status: 'not_downloaded',
+    status: "not_downloaded",
     progress: 0,
     writtenMB: 0,
     totalMB: SPEECH_MODEL.sizeMB,
   });
+
+  // Speech Synthesis Model State & Settings (Kokoro-82M Phase 3)
+  const [ttsSettings, setTtsSettings] =
+    useState<TtsSettings>(DEFAULT_TTS_SETTINGS);
+  const [ttsModelState, setTtsModelState] = useState<ModelState>({
+    status: "not_downloaded",
+    progress: 0,
+    writtenMB: 0,
+    totalMB: TTS_MODEL_ASSETS.totalSizeMB,
+  });
+  const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(
+    null,
+  );
+  const [isPreviewSynthesizing, setIsPreviewSynthesizing] =
+    useState<boolean>(false);
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [synthesizingMessageId, setSynthesizingMessageId] = useState<
+    string | null
+  >(null);
 
   // Llama Runtime Context
   const [llmContext, setLlmContext] = useState<LlamaContext | null>(null);
@@ -55,18 +100,22 @@ export default function App() {
 
   // Chat State
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState<string>('');
+  const [inputText, setInputText] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [streamingText, setStreamingText] = useState<string>('');
+  const [streamingText, setStreamingText] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [expandedMetricsId, setExpandedMetricsId] = useState<string | null>(null);
+  const [expandedMetricsId, setExpandedMetricsId] = useState<string | null>(
+    null,
+  );
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   // Settings
   const [temperature, setTemperature] = useState<number>(0.7);
   const [maxTokens, setMaxTokens] = useState<number>(1024);
-  const [systemPrompt, setSystemPrompt] = useState<string>(DEFAULT_SYSTEM_PROMPT);
+  const [systemPrompt, setSystemPrompt] = useState<string>(
+    DEFAULT_SYSTEM_PROMPT,
+  );
 
   // Voice Input (Offline Whisper STT)
   const {
@@ -83,24 +132,51 @@ export default function App() {
   // References
   const scrollViewRef = useRef<ScrollView>(null);
   const userScrolledUpRef = useRef<boolean>(false);
-  const downloadJobsRef = useRef<Record<string, FileSystem.DownloadResumable>>({});
+  const downloadJobsRef = useRef<Record<string, FileSystem.DownloadResumable>>(
+    {},
+  );
   const cancelledDownloadsRef = useRef<Record<string, boolean>>({});
 
   const getModelPath = (filename: string) => {
-    return `${FileSystem.documentDirectory || ''}${filename}`;
+    return `${FileSystem.documentDirectory || ""}${filename}`;
   };
 
   useEffect(() => {
     checkAllModels();
     checkSpeechModel();
+    loadInitialTts();
   }, []);
+
+  const loadInitialTts = async () => {
+    try {
+      const saved = await loadTtsSettings();
+      setTtsSettings(saved);
+    } catch (_) {}
+    await checkTtsModel();
+  };
+
+  const checkTtsModel = async () => {
+    try {
+      const downloaded = await isTtsModelDownloaded();
+      if (downloaded) {
+        setTtsModelState({
+          status: "downloaded",
+          progress: 100,
+          writtenMB: TTS_MODEL_ASSETS.totalSizeMB,
+          totalMB: TTS_MODEL_ASSETS.totalSizeMB,
+        });
+        const modelDir = await getTtsModelDirectory();
+        await kokoroTtsService.initialize(modelDir);
+      }
+    } catch (_) {}
+  };
 
   const checkSpeechModel = async () => {
     try {
       const isDownloaded = await isSpeechModelDownloaded();
       if (isDownloaded) {
         setSpeechModelState({
-          status: 'downloaded',
+          status: "downloaded",
           progress: 100,
           writtenMB: SPEECH_MODEL.sizeMB,
           totalMB: SPEECH_MODEL.sizeMB,
@@ -111,14 +187,16 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-      const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+      const showEvent =
+        Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+      const hideEvent =
+        Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
       const showSub =
-        Keyboard && typeof Keyboard.addListener === 'function'
+        Keyboard && typeof Keyboard.addListener === "function"
           ? Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true))
           : null;
       const hideSub =
-        Keyboard && typeof Keyboard.addListener === 'function'
+        Keyboard && typeof Keyboard.addListener === "function"
           ? Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false))
           : null;
       return () => {
@@ -128,7 +206,7 @@ export default function App() {
         } catch (_) {}
       };
     } catch (e) {
-      console.warn('Keyboard listener error', e);
+      console.warn("Keyboard listener error", e);
     }
   }, []);
 
@@ -150,7 +228,7 @@ export default function App() {
           setModelStates((prev) => ({
             ...prev,
             [model.id]: {
-              status: activeModelId === model.id ? 'ready' : 'downloaded',
+              status: activeModelId === model.id ? "ready" : "downloaded",
               progress: 100,
               writtenMB: sizeMB,
               totalMB: sizeMB,
@@ -160,7 +238,7 @@ export default function App() {
           setModelStates((prev) => ({
             ...prev,
             [model.id]: {
-              status: 'not_downloaded',
+              status: "not_downloaded",
               progress: 0,
               writtenMB: 0,
               totalMB: model.sizeMB,
@@ -168,7 +246,7 @@ export default function App() {
           }));
         }
       } catch (e) {
-        console.log('Error checking file for', model.id, e);
+        console.log("Error checking file for", model.id, e);
       }
     }
   };
@@ -186,7 +264,7 @@ export default function App() {
         ...prev,
         [model.id]: {
           ...prev[model.id],
-          status: 'downloading',
+          status: "downloading",
           progress: prev[model.id]?.progress || 0,
           writtenMB: prev[model.id]?.writtenMB || 0,
           totalMB: model.sizeMB,
@@ -209,11 +287,11 @@ export default function App() {
       }
 
       let downloadSuccess = false;
-      let lastError: any = new Error('Download failed');
+      let lastError: any = new Error("Download failed");
 
       for (const url of urls) {
         if (cancelledDownloadsRef.current[model.id]) {
-          throw new Error('Download cancelled');
+          throw new Error("Download cancelled");
         }
         if (downloadSuccess) break;
 
@@ -226,16 +304,18 @@ export default function App() {
               : model.sizeMB * 1024 * 1024;
           const pct = Math.min(
             100,
-            Math.max(0, Math.round((p.totalBytesWritten / expected) * 100))
+            Math.max(0, Math.round((p.totalBytesWritten / expected) * 100)),
           );
-          const writtenMB = Number((p.totalBytesWritten / (1024 * 1024)).toFixed(1));
+          const writtenMB = Number(
+            (p.totalBytesWritten / (1024 * 1024)).toFixed(1),
+          );
           const totalMB = Number((expected / (1024 * 1024)).toFixed(1));
 
           setModelStates((prev) => ({
             ...prev,
             [model.id]: {
               ...prev[model.id],
-              status: 'downloading',
+              status: "downloading",
               progress: Math.max(prev[model.id]?.progress || 0, pct),
               writtenMB: Math.max(prev[model.id]?.writtenMB || 0, writtenMB),
               totalMB,
@@ -248,7 +328,7 @@ export default function App() {
             url,
             stagingPath,
             {},
-            progressCallback
+            progressCallback,
           );
           downloadJobsRef.current[model.id] = job;
 
@@ -258,20 +338,24 @@ export default function App() {
 
           while (retryCount < maxRetries && !downloadSuccess) {
             if (cancelledDownloadsRef.current[model.id]) {
-              throw new Error('Download cancelled');
+              throw new Error("Download cancelled");
             }
 
             try {
               if (retryCount === 0) {
                 result = await job.downloadAsync();
               } else {
-                console.log(`[Veresa] Resuming download (attempt ${retryCount}/${maxRetries})...`);
+                console.log(
+                  `[Veresa] Resuming download (attempt ${retryCount}/${maxRetries})...`,
+                );
                 result = await job.resumeAsync();
               }
 
               if (result?.uri) {
                 const stagedInfo = await FileSystem.getInfoAsync(stagingPath);
-                const stagedBytes = stagedInfo.exists ? Number((stagedInfo as any).size || 0) : 0;
+                const stagedBytes = stagedInfo.exists
+                  ? Number((stagedInfo as any).size || 0)
+                  : 0;
                 if (stagedBytes >= minimumBytes) {
                   downloadSuccess = true;
                   break;
@@ -294,13 +378,15 @@ export default function App() {
             await FileSystem.deleteAsync(finalPath, { idempotent: true });
             await FileSystem.moveAsync({ from: stagingPath, to: finalPath });
             const finalInfo = await FileSystem.getInfoAsync(finalPath);
-            const finalMB = Math.round(Number((finalInfo as any).size || 0) / (1024 * 1024));
+            const finalMB = Math.round(
+              Number((finalInfo as any).size || 0) / (1024 * 1024),
+            );
 
             setModelStates((prev) => ({
               ...prev,
               [model.id]: {
                 ...prev[model.id],
-                status: 'downloaded',
+                status: "downloaded",
                 progress: 100,
                 writtenMB: finalMB,
                 totalMB: finalMB,
@@ -313,7 +399,7 @@ export default function App() {
           delete downloadJobsRef.current[model.id];
           lastError = e;
           if (cancelledDownloadsRef.current[model.id]) {
-            throw new Error('Download cancelled');
+            throw new Error("Download cancelled");
           }
         }
       }
@@ -324,23 +410,28 @@ export default function App() {
     } catch (e: any) {
       delete downloadJobsRef.current[model.id];
       const cancelled =
-        cancelledDownloadsRef.current[model.id] || e?.message === 'Download cancelled';
+        cancelledDownloadsRef.current[model.id] ||
+        e?.message === "Download cancelled";
       if (cancelled) {
-        await FileSystem.deleteAsync(stagingPath, { idempotent: true }).catch(() => undefined);
+        await FileSystem.deleteAsync(stagingPath, { idempotent: true }).catch(
+          () => undefined,
+        );
       }
       setModelStates((prev) => ({
         ...prev,
         [model.id]: {
           ...prev[model.id],
-          status: cancelled ? 'not_downloaded' : 'error',
+          status: cancelled ? "not_downloaded" : "error",
           progress: cancelled ? 0 : prev[model.id]?.progress || 0,
           writtenMB: cancelled ? 0 : prev[model.id]?.writtenMB || 0,
           totalMB: model.sizeMB,
-          error: cancelled ? undefined : e?.message || 'Download error',
+          error: cancelled ? undefined : e?.message || "Download error",
         },
       }));
       if (!cancelled) {
-        setErrorMsg(`Download Interrupted (${model.name}): ${e?.message || 'Network hiccup. Tap to resume.'}`);
+        setErrorMsg(
+          `Download Interrupted (${model.name}): ${e?.message || "Network hiccup. Tap to resume."}`,
+        );
       }
     }
   };
@@ -353,7 +444,7 @@ export default function App() {
       try {
         await job.cancelAsync();
       } catch (e) {
-        console.log('Error cancelling download:', e);
+        console.log("Error cancelling download:", e);
       }
       delete downloadJobsRef.current[model.id];
     }
@@ -367,7 +458,7 @@ export default function App() {
       ...prev,
       [model.id]: {
         ...prev[model.id],
-        status: 'not_downloaded',
+        status: "not_downloaded",
         progress: 0,
         writtenMB: 0,
         totalMB: model.sizeMB,
@@ -379,18 +470,18 @@ export default function App() {
   // Delete Model with safety Alert
   const deleteModel = async (model: LLMConfig) => {
     if (isGenerating) {
-      setErrorMsg('Stop active generation before deleting model weights.');
+      setErrorMsg("Stop active generation before deleting model weights.");
       return;
     }
 
     Alert.alert(
-      'Delete Model',
+      "Delete Model",
       `Delete ${model.name}? You can re-download it anytime.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             try {
               if (llmContext && activeModelId === model.id) {
@@ -405,7 +496,7 @@ export default function App() {
               setModelStates((prev) => ({
                 ...prev,
                 [model.id]: {
-                  status: 'not_downloaded',
+                  status: "not_downloaded",
                   progress: 0,
                   writtenMB: 0,
                   totalMB: model.sizeMB,
@@ -416,7 +507,7 @@ export default function App() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -424,7 +515,7 @@ export default function App() {
   const handleDownloadSpeechModel = async () => {
     try {
       setSpeechModelState({
-        status: 'downloading',
+        status: "downloading",
         progress: 0,
         writtenMB: 0,
         totalMB: SPEECH_MODEL.sizeMB,
@@ -432,7 +523,7 @@ export default function App() {
 
       await downloadSpeechModel((pct, writtenMB, totalMB) => {
         setSpeechModelState({
-          status: 'downloading',
+          status: "downloading",
           progress: pct,
           writtenMB,
           totalMB,
@@ -440,37 +531,39 @@ export default function App() {
       });
 
       setSpeechModelState({
-        status: 'downloaded',
+        status: "downloaded",
         progress: 100,
         writtenMB: SPEECH_MODEL.sizeMB,
         totalMB: SPEECH_MODEL.sizeMB,
       });
     } catch (e: any) {
-      console.error('[App] Failed to download speech model:', e);
+      console.error("[App] Failed to download speech model:", e);
       setSpeechModelState((prev) => ({
         ...prev,
-        status: 'error',
-        error: e?.message || 'Download failed',
+        status: "error",
+        error: e?.message || "Download failed",
       }));
-      setErrorMsg(`Voice Model Download Failed: ${e?.message || 'Network error'}`);
+      setErrorMsg(
+        `Voice Model Download Failed: ${e?.message || "Network error"}`,
+      );
     }
   };
 
   // Delete Speech Recognition Model
   const handleDeleteSpeechModel = () => {
     Alert.alert(
-      'Delete Voice Model?',
+      "Delete Voice Model?",
       `Are you sure you want to delete ${SPEECH_MODEL.name}? You will need to re-download it to use offline voice input.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             try {
               await deleteSpeechModel();
               setSpeechModelState({
-                status: 'not_downloaded',
+                status: "not_downloaded",
                 progress: 0,
                 writtenMB: 0,
                 totalMB: SPEECH_MODEL.sizeMB,
@@ -480,14 +573,223 @@ export default function App() {
             }
           },
         },
-      ]
+      ],
     );
+  };
+
+  // TTS Settings Handlers
+  const handleSelectTtsVoice = async (voiceId: string) => {
+    const updated = { ...ttsSettings, voiceId };
+    setTtsSettings(updated);
+    await saveTtsSettings(updated);
+  };
+
+  const handleSelectTtsSpeed = async (speed: number) => {
+    const updated = { ...ttsSettings, speed };
+    setTtsSettings(updated);
+    await saveTtsSettings(updated);
+  };
+
+  const handleToggleAutoPlay = async (autoPlay: boolean) => {
+    const updated = { ...ttsSettings, autoPlay };
+    setTtsSettings(updated);
+    await saveTtsSettings(updated);
+  };
+
+  // Download Kokoro TTS Model (82M ONNX multi-lang)
+  const handleDownloadTtsModel = async () => {
+    try {
+      setTtsModelState({
+        status: "downloading",
+        progress: 0,
+        writtenMB: 0,
+        totalMB: TTS_MODEL_ASSETS.totalSizeMB,
+      });
+
+      await downloadTtsModel((pct, writtenMB, totalMB) => {
+        setTtsModelState({
+          status: "downloading",
+          progress: pct,
+          writtenMB,
+          totalMB,
+        });
+      });
+
+      setTtsModelState({
+        status: "downloaded",
+        progress: 100,
+        writtenMB: TTS_MODEL_ASSETS.totalSizeMB,
+        totalMB: TTS_MODEL_ASSETS.totalSizeMB,
+      });
+
+      const modelDir = await getTtsModelDirectory();
+      await kokoroTtsService.initialize(modelDir);
+    } catch (e: any) {
+      console.error("[App] Failed to download TTS model:", e);
+      setTtsModelState((prev) => ({
+        ...prev,
+        status: "error",
+        error: e?.message || "Download failed",
+      }));
+      setErrorMsg(
+        `TTS Model Download Failed: ${e?.message || "Network error"}`,
+      );
+    }
+  };
+
+  // Delete Kokoro TTS Model
+  const handleDeleteTtsModel = () => {
+    Alert.alert(
+      "Delete Voice Studio Model?",
+      `Are you sure you want to delete Kokoro-82M (~${TTS_MODEL_ASSETS.totalSizeMB} MB)? You will need to re-download it to hear spoken audio.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await kokoroTtsService.stop();
+              await kokoroTtsService.release();
+              await deleteTtsModel();
+              setTtsModelState({
+                status: "not_downloaded",
+                progress: 0,
+                writtenMB: 0,
+                totalMB: TTS_MODEL_ASSETS.totalSizeMB,
+              });
+              setPreviewingVoiceId(null);
+              setIsPreviewSynthesizing(false);
+              setPlayingMessageId(null);
+              setSynthesizingMessageId(null);
+            } catch (e: any) {
+              setErrorMsg(`Error deleting TTS model: ${e?.message}`);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleStopAllSpeech = async () => {
+    setPreviewingVoiceId(null);
+    setIsPreviewSynthesizing(false);
+    setPlayingMessageId(null);
+    setSynthesizingMessageId(null);
+    try {
+      await kokoroTtsService.stop();
+    } catch (_) {}
+  };
+
+  // Preview Voice in Voice Studio
+  const handlePreviewVoice = async (voice: KokoroVoiceMetadata) => {
+    try {
+      await handleStopAllSpeech();
+
+      if (
+        ttsModelState.status !== "downloaded" &&
+        ttsModelState.status !== "ready"
+      ) {
+        Alert.alert(
+          "Model Not Downloaded",
+          "Please download the Kokoro-82M model first in Voice Studio to preview voice samples.",
+        );
+        return;
+      }
+
+      setPreviewingVoiceId(voice.id);
+      setIsPreviewSynthesizing(true);
+
+      const isReady = await kokoroTtsService.isReady();
+      if (!isReady) {
+        const modelDir = await getTtsModelDirectory();
+        await kokoroTtsService.initialize(modelDir);
+      }
+
+      await kokoroTtsService.speak(
+        FIXED_PREVIEW_TEXT,
+        voice.speakerId,
+        ttsSettings.speed,
+        () => {
+          setIsPreviewSynthesizing(false);
+        },
+        () => {
+          setPreviewingVoiceId(null);
+          setIsPreviewSynthesizing(false);
+        },
+      );
+    } catch (e: any) {
+      console.warn("[App] Preview voice error:", e);
+      setPreviewingVoiceId(null);
+      setIsPreviewSynthesizing(false);
+      setErrorMsg(`Voice preview error: ${e?.message || "Synthesis failed"}`);
+    }
+  };
+
+  // Play Assistant Message Speech
+  const handlePlayMessageSpeech = async (
+    messageId: string,
+    content: string,
+  ) => {
+    try {
+      if (
+        playingMessageId === messageId ||
+        synthesizingMessageId === messageId
+      ) {
+        await handleStopAllSpeech();
+        return;
+      }
+
+      await handleStopAllSpeech();
+
+      if (
+        ttsModelState.status !== "downloaded" &&
+        ttsModelState.status !== "ready"
+      ) {
+        Alert.alert(
+          "Voice Model Required",
+          "Please download the Kokoro-82M model in Settings > Voice Studio to play spoken responses.",
+        );
+        return;
+      }
+
+      setSynthesizingMessageId(messageId);
+
+      const isReady = await kokoroTtsService.isReady();
+      if (!isReady) {
+        const modelDir = await getTtsModelDirectory();
+        await kokoroTtsService.initialize(modelDir);
+      }
+
+      const activeVoice =
+        KOKORO_VOICES.find((v) => v.id === ttsSettings.voiceId) ||
+        KOKORO_VOICES[0];
+
+      await kokoroTtsService.speak(
+        content,
+        activeVoice.speakerId,
+        ttsSettings.speed,
+        () => {
+          setSynthesizingMessageId(null);
+          setPlayingMessageId(messageId);
+        },
+        () => {
+          setPlayingMessageId(null);
+          setSynthesizingMessageId(null);
+        },
+      );
+    } catch (e: any) {
+      console.warn("[App] Message speech error:", e);
+      setSynthesizingMessageId(null);
+      setPlayingMessageId(null);
+      setErrorMsg(`Speech error: ${e?.message || "Playback failed"}`);
+    }
   };
 
   // Load Model into RAM with safe release of previous context
   const loadModelIntoRam = async (model: LLMConfig) => {
     if (isGenerating) {
-      setErrorMsg('Please stop generation before switching models.');
+      setErrorMsg("Please stop generation before switching models.");
       return;
     }
 
@@ -503,7 +805,7 @@ export default function App() {
 
       setModelStates((prev) => ({
         ...prev,
-        [model.id]: { ...prev[model.id], status: 'loading' },
+        [model.id]: { ...prev[model.id], status: "loading" },
       }));
 
       const path = getModelPath(model.filename);
@@ -512,7 +814,7 @@ export default function App() {
         !modelInfo.exists ||
         Number((modelInfo as any).size || 0) < model.sizeMB * 1024 * 1024 * 0.85
       ) {
-        throw new Error('Model file is incomplete. Please download it again.');
+        throw new Error("Model file is incomplete. Please download it again.");
       }
 
       const ctx = await initLlama({
@@ -530,9 +832,9 @@ export default function App() {
         const updated = { ...prev };
         for (const k of Object.keys(updated)) {
           if (k === model.id) {
-            updated[k] = { ...updated[k], status: 'ready' };
-          } else if (updated[k].status === 'ready') {
-            updated[k] = { ...updated[k], status: 'downloaded' };
+            updated[k] = { ...updated[k], status: "ready" };
+          } else if (updated[k].status === "ready") {
+            updated[k] = { ...updated[k], status: "downloaded" };
           }
         }
         return updated;
@@ -543,18 +845,18 @@ export default function App() {
       setModelStates((prev) => {
         const updated = { ...prev };
         for (const key of Object.keys(updated)) {
-          if (updated[key].status === 'ready') {
-            updated[key] = { ...updated[key], status: 'downloaded' };
+          if (updated[key].status === "ready") {
+            updated[key] = { ...updated[key], status: "downloaded" };
           }
         }
         updated[model.id] = {
           ...updated[model.id],
-          status: 'error',
-          error: e?.message || 'Model loading error',
+          status: "error",
+          error: e?.message || "Model loading error",
         };
         return updated;
       });
-      setErrorMsg(`Model Load Failed: ${e?.message || 'Error loading GGUF'}`);
+      setErrorMsg(`Model Load Failed: ${e?.message || "Error loading GGUF"}`);
     }
   };
 
@@ -568,7 +870,7 @@ export default function App() {
       setActiveModelId(null);
       setModelStates((prev) => ({
         ...prev,
-        [model.id]: { ...prev[model.id], status: 'downloaded' },
+        [model.id]: { ...prev[model.id], status: "downloaded" },
       }));
     }
   };
@@ -579,7 +881,7 @@ export default function App() {
       try {
         await llmContext.stopCompletion();
       } catch (e) {
-        console.log('Error stopping completion:', e);
+        console.log("Error stopping completion:", e);
       }
       setIsGenerating(false);
     }
@@ -589,7 +891,9 @@ export default function App() {
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     const paddingToBottom = 80;
-    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    const isAtBottom =
+      layoutMeasurement.height + contentOffset.y >=
+      contentSize.height - paddingToBottom;
     userScrolledUpRef.current = !isAtBottom;
   };
 
@@ -599,25 +903,25 @@ export default function App() {
     if (!text || !llmContext || isGenerating) return;
 
     Keyboard.dismiss();
-    setInputText('');
+    setInputText("");
     setErrorMsg(null);
     userScrolledUpRef.current = false;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      role: 'user',
+      role: "user",
       content: text,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setIsGenerating(true);
-    setStreamingText('');
+    setStreamingText("");
 
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
-    let accumulated = '';
+    let accumulated = "";
     const startTime = Date.now();
     const promptAssembleStart = Date.now();
     let promptAssembleEnd = 0;
@@ -632,7 +936,7 @@ export default function App() {
       const allConversationMessages = [...messages, userMessage];
       const turns: Message[][] = [];
       for (const message of allConversationMessages) {
-        if (message.role === 'user') {
+        if (message.role === "user") {
           turns.push([message]);
         } else if (turns.length > 0) {
           turns[turns.length - 1].push(message);
@@ -647,7 +951,10 @@ export default function App() {
 
       for (let i = turns.length - 1; i >= 0; i--) {
         const turn = turns[i];
-        const turnChars = turn.reduce((sum, msg) => sum + msg.content.length, 0);
+        const turnChars = turn.reduce(
+          (sum, msg) => sum + msg.content.length,
+          0,
+        );
         if (
           recentTurns.length > 0 &&
           (historyChars + turnChars > maxHistoryChars ||
@@ -663,14 +970,17 @@ export default function App() {
       const history = recentTurns.flat();
       const promptMessages = [
         {
-          role: 'system' as const,
+          role: "system" as const,
           content: systemPrompt,
         },
         ...history
           .map((msg) => ({
-            role: msg.role as 'user' | 'assistant',
+            role: msg.role as "user" | "assistant",
             // Clean past assistant turns so previous thinking tags never contaminate future turns
-            content: msg.role === 'assistant' ? stripThinking(msg.content).visible.trim() : msg.content.trim(),
+            content:
+              msg.role === "assistant"
+                ? stripThinking(msg.content).visible.trim()
+                : msg.content.trim(),
           }))
           .filter((msg) => msg.content.length > 0),
       ];
@@ -678,29 +988,36 @@ export default function App() {
       completionInvokeTime = Date.now();
 
       // Build official verified prompt format (with closed thinking tags for Qwen3)
-      const formatted = buildFormattedChatPrompt(selectedModel, promptMessages, {
-        enableThinking: false,
-      });
+      const formatted = buildFormattedChatPrompt(
+        selectedModel,
+        promptMessages,
+        {
+          enableThinking: false,
+        },
+      );
 
       const isQwen3 =
-        selectedModel.filename.toLowerCase().includes('qwen3') ||
-        selectedModel.id.includes('qwen3') ||
-        selectedModel.name.includes('Qwen3');
-      const expectedSuffix = '<|im_start|>assistant\n<think>\n\n</think>\n\n';
-      const promptEndsWithClosedThinking = formatted.prompt.endsWith(expectedSuffix);
+        selectedModel.filename.toLowerCase().includes("qwen3") ||
+        selectedModel.id.includes("qwen3") ||
+        selectedModel.name.includes("Qwen3");
+      const expectedSuffix = "<|im_start|>assistant\n<think>\n\n</think>\n\n";
+      const promptEndsWithClosedThinking =
+        formatted.prompt.endsWith(expectedSuffix);
 
-      console.log('=== [FORMATTED PROMPT TAIL DIAGNOSTIC] ===', {
+      console.log("=== [FORMATTED PROMPT TAIL DIAGNOSTIC] ===", {
         model: selectedModel.name,
         isQwen3,
         promptLengthChars: formatted.prompt.length,
         promptTail: JSON.stringify(formatted.prompt.slice(-80)),
-        closedThinkingVerified: isQwen3 ? promptEndsWithClosedThinking : 'N/A (non-Qwen3)',
+        closedThinkingVerified: isQwen3
+          ? promptEndsWithClosedThinking
+          : "N/A (non-Qwen3)",
       });
 
       if (isQwen3 && !promptEndsWithClosedThinking) {
         console.warn(
-          '[DIAGNOSTIC ASSERTION FAILED] Non-thinking Qwen3 prompt must end with <think>\\n\\n</think>\\n\\n but ended with: ' +
-            JSON.stringify(formatted.prompt.slice(-40))
+          "[DIAGNOSTIC ASSERTION FAILED] Non-thinking Qwen3 prompt must end with <think>\\n\\n</think>\\n\\n but ended with: " +
+            JSON.stringify(formatted.prompt.slice(-40)),
         );
       }
 
@@ -719,7 +1036,10 @@ export default function App() {
           penalty_freq: 0,
         },
         (data) => {
-          const piece = data.content !== undefined && data.content !== '' ? data.content : data.token;
+          const piece =
+            data.content !== undefined && data.content !== ""
+              ? data.content
+              : data.token;
           if (!piece) return;
           const now = Date.now();
           if (tokenCount === 0) firstTokenTime = now;
@@ -734,11 +1054,11 @@ export default function App() {
             firstVisibleTime = now;
           }
 
-          if (now - lastStreamUpdateAt >= 50 || piece.includes('\n')) {
+          if (now - lastStreamUpdateAt >= 50 || piece.includes("\n")) {
             lastStreamUpdateAt = now;
             setStreamingText(stripped.visible);
           }
-        }
+        },
       );
 
       const strippedFinal = stripThinking(accumulated);
@@ -750,19 +1070,30 @@ export default function App() {
       setStreamingText(finalReply);
       const endTime = Date.now();
       const durationSec = (endTime - startTime) / 1000;
-      const ttftMs = firstTokenTime > 0 ? firstTokenTime - completionInvokeTime : 0;
-      const firstVisibleMs = firstVisibleTime > 0 ? firstVisibleTime - completionInvokeTime : ttftMs;
+      const ttftMs =
+        firstTokenTime > 0 ? firstTokenTime - completionInvokeTime : 0;
+      const firstVisibleMs =
+        firstVisibleTime > 0 ? firstVisibleTime - completionInvokeTime : ttftMs;
       const tokensPerSec =
         result?.timings?.predicted_per_second ??
-        (durationSec > 0 ? parseFloat((tokenCount / durationSec).toFixed(1)) : 0);
+        (durationSec > 0
+          ? parseFloat((tokenCount / durationSec).toFixed(1))
+          : 0);
 
-      const hadThinking = /<(think|thinking|thought|reasoning)>/i.test(accumulated);
-      const thinkingMatch = /<(think|thinking|thought|reasoning)>([\s\S]*?)<\/\1>/i.exec(accumulated);
-      const thinkingText = thinkingMatch ? thinkingMatch[2] : '';
-      const thinkingTokensEst = thinkingText ? Math.round(thinkingText.length / 4) : 0;
+      const hadThinking = /<(think|thinking|thought|reasoning)>/i.test(
+        accumulated,
+      );
+      const thinkingMatch =
+        /<(think|thinking|thought|reasoning)>([\s\S]*?)<\/\1>/i.exec(
+          accumulated,
+        );
+      const thinkingText = thinkingMatch ? thinkingMatch[2] : "";
+      const thinkingTokensEst = thinkingText
+        ? Math.round(thinkingText.length / 4)
+        : 0;
 
       // Diagnostic Logging
-      console.log('=== [LLM BENCHMARK DIAGNOSTICS] ===', {
+      console.log("=== [LLM BENCHMARK DIAGNOSTICS] ===", {
         prompt: text,
         model: selectedModel.name,
         timings: {
@@ -774,7 +1105,8 @@ export default function App() {
           nativePromptTokens: result?.timings?.prompt_n,
           nativePredictedMs: result?.timings?.predicted_ms,
           nativePredictedTokens: result?.timings?.predicted_n ?? tokenCount,
-          nativePredictedSpeed: result?.timings?.predicted_per_second ?? tokensPerSec,
+          nativePredictedSpeed:
+            result?.timings?.predicted_per_second ?? tokensPerSec,
         },
         reasoningAnalysis: {
           hadThinking,
@@ -786,7 +1118,7 @@ export default function App() {
       if (finalReply.trim()) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
-          role: 'assistant',
+          role: "assistant",
           content: finalReply.trim(),
           metrics: {
             ttftMs,
@@ -795,21 +1127,32 @@ export default function App() {
             totalTokens: result?.timings?.predicted_n ?? tokenCount,
             durationSec: parseFloat(durationSec.toFixed(2)),
             promptTokens: result?.timings?.prompt_n,
-            promptMs: result?.timings?.prompt_ms ? Math.round(result.timings.prompt_ms) : undefined,
+            promptMs: result?.timings?.prompt_ms
+              ? Math.round(result.timings.prompt_ms)
+              : undefined,
             thinkingTokens: thinkingTokensEst,
             hadThinking,
           },
         };
         setMessages((prev) => [...prev, assistantMessage]);
+
+        // Auto-play spoken response if enabled and TTS model is downloaded
+        if (
+          ttsSettings.autoPlay &&
+          (ttsModelState.status === "downloaded" ||
+            ttsModelState.status === "ready")
+        ) {
+          handlePlayMessageSpeech(assistantMessage.id, finalReply.trim());
+        }
       }
-      setStreamingText('');
+      setStreamingText("");
     } catch (e: any) {
       const strippedStopped = stripThinking(accumulated);
       const stoppedVisible = strippedStopped.visible.trim();
       if (stoppedVisible) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
-          role: 'assistant',
+          role: "assistant",
           content: `${stoppedVisible} [stopped]`,
         };
         setMessages((prev) => [...prev, assistantMessage]);
@@ -817,13 +1160,13 @@ export default function App() {
       setErrorMsg(`Generation Error: ${e.message}`);
     } finally {
       setIsGenerating(false);
-      setStreamingText('');
+      setStreamingText("");
     }
   };
 
   const clearChat = () => {
     setMessages([]);
-    setStreamingText('');
+    setStreamingText("");
   };
 
   const handleCopyMessage = (id: string, content: string) => {
@@ -833,22 +1176,30 @@ export default function App() {
   };
 
   const activeState = modelStates[selectedModel.id] || {
-    status: 'not_downloaded',
+    status: "not_downloaded",
     progress: 0,
     writtenMB: 0,
     totalMB: selectedModel.sizeMB,
   };
 
-  const isModelReady = activeState.status === 'ready' && llmContext !== null;
+  const isModelReady = activeState.status === "ready" && llmContext !== null;
   const canSend = isModelReady && inputText.trim().length > 0 && !isGenerating;
-  const downloadingCount = Object.values(modelStates).filter((s) => s.status === 'downloading').length;
+  const downloadingCount = Object.values(modelStates).filter(
+    (s) => s.status === "downloading",
+  ).length;
 
   const totalStorageMB =
     Object.values(modelStates).reduce((acc, st) => {
-      return st.status === 'downloaded' || st.status === 'ready' ? acc + (st.writtenMB || 0) : acc;
+      return st.status === "downloaded" || st.status === "ready"
+        ? acc + (st.writtenMB || 0)
+        : acc;
     }, 0) +
-    (speechModelState.status === 'downloaded' || speechModelState.status === 'ready'
+    (speechModelState.status === "downloaded" ||
+    speechModelState.status === "ready"
       ? speechModelState.writtenMB || SPEECH_MODEL.sizeMB
+      : 0) +
+    (ttsModelState.status === "downloaded" || ttsModelState.status === "ready"
+      ? ttsModelState.writtenMB || TTS_MODEL_ASSETS.totalSizeMB
       : 0);
 
   return (
@@ -856,7 +1207,7 @@ export default function App() {
       <StatusBar
         barStyle="light-content"
         backgroundColor={THEME.colors.bgApp}
-        translucent={Platform.OS === 'android'}
+        translucent={Platform.OS === "android"}
       />
 
       <View style={styles.container}>
@@ -867,12 +1218,12 @@ export default function App() {
           isModelReady={isModelReady}
           activeTab={activeTab}
           hasMessages={messages.length > 0}
-          onOpenModels={() => setActiveTab('models')}
+          onOpenModels={() => setActiveTab("models")}
           onClearChat={clearChat}
         />
 
         {/* TAB 1: ASSISTANT CONVERSATION SCREEN */}
-        {activeTab === 'assistant' && (
+        {activeTab === "assistant" && (
           <AssistantScreen
             isModelReady={isModelReady}
             activeState={activeState}
@@ -887,10 +1238,12 @@ export default function App() {
             canSend={canSend}
             isKeyboardVisible={isKeyboardVisible}
             expandedMetricsId={expandedMetricsId}
-            onToggleMetrics={(id) => setExpandedMetricsId((prev) => (prev === id ? null : id))}
+            onToggleMetrics={(id) =>
+              setExpandedMetricsId((prev) => (prev === id ? null : id))
+            }
             copiedMessageId={copiedMessageId}
             onCopyMessage={handleCopyMessage}
-            onOpenModels={() => setActiveTab('models')}
+            onOpenModels={() => setActiveTab("models")}
             scrollViewRef={scrollViewRef}
             userScrolledUpRef={userScrolledUpRef}
             onScroll={handleScroll}
@@ -909,16 +1262,23 @@ export default function App() {
                   sendMessage(text);
                 } else {
                   setInputText(text);
-                  Alert.alert('Model Not Loaded', 'Please load a model first to chat with Veresa.');
+                  Alert.alert(
+                    "Model Not Loaded",
+                    "Please load a model first to chat with Veresa.",
+                  );
                 }
               }
             }}
             onCancelRecording={cancelRecording}
+            playingMessageId={playingMessageId}
+            synthesizingMessageId={synthesizingMessageId}
+            onPlayMessageSpeech={handlePlayMessageSpeech}
+            onStopMessageSpeech={handleStopAllSpeech}
           />
         )}
 
         {/* TAB 2: MODEL LIBRARY & DOWNLOAD MANAGER */}
-        {activeTab === 'models' && (
+        {activeTab === "models" && (
           <ModelsScreen
             models={LLM_MODELS}
             modelStates={modelStates}
@@ -938,7 +1298,7 @@ export default function App() {
         )}
 
         {/* TAB 3: SETTINGS & INFERENCE PARAMETERS */}
-        {activeTab === 'settings' && (
+        {activeTab === "settings" && (
           <SettingsScreen
             temperature={temperature}
             onSetTemperature={setTemperature}
@@ -949,6 +1309,19 @@ export default function App() {
             onResetSystemPrompt={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
             isModelReady={isModelReady}
             selectedModel={selectedModel}
+            selectedVoiceId={ttsSettings.voiceId}
+            onSelectVoice={handleSelectTtsVoice}
+            speechSpeed={ttsSettings.speed}
+            onSelectSpeed={handleSelectTtsSpeed}
+            autoPlay={ttsSettings.autoPlay}
+            onToggleAutoPlay={handleToggleAutoPlay}
+            ttsModelState={ttsModelState}
+            onDownloadTtsModel={handleDownloadTtsModel}
+            onDeleteTtsModel={handleDeleteTtsModel}
+            previewingVoiceId={previewingVoiceId}
+            isPreviewSynthesizing={isPreviewSynthesizing}
+            onPreviewVoice={handlePreviewVoice}
+            onStopPreview={handleStopAllSpeech}
           />
         )}
 
@@ -970,7 +1343,8 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: THEME.colors.bgApp,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 4 : 0,
+    paddingTop:
+      Platform.OS === "android" ? (StatusBar.currentHeight || 28) + 4 : 0,
   },
   container: {
     flex: 1,

@@ -45,6 +45,10 @@ interface AssistantScreenProps {
   onStartRecording?: () => void;
   onStopRecording?: () => void;
   onCancelRecording?: () => void;
+  playingMessageId?: string | null;
+  synthesizingMessageId?: string | null;
+  onPlayMessageSpeech?: (messageId: string, content: string) => void;
+  onStopMessageSpeech?: () => void;
 }
 
 export function AssistantScreen({
@@ -75,6 +79,10 @@ export function AssistantScreen({
   onStartRecording,
   onStopRecording,
   onCancelRecording,
+  playingMessageId = null,
+  synthesizingMessageId = null,
+  onPlayMessageSpeech,
+  onStopMessageSpeech,
 }: AssistantScreenProps) {
   return (
     <KeyboardAvoidingView
@@ -190,6 +198,12 @@ export function AssistantScreen({
             copied={copiedMessageId === m.id}
             onCopy={() => onCopyMessage(m.id, m.content)}
             onToggleMetrics={() => onToggleMetrics(m.id)}
+            isPlayingAudio={playingMessageId === m.id}
+            isSynthesizingAudio={synthesizingMessageId === m.id}
+            onPlaySpeech={
+              onPlayMessageSpeech ? () => onPlayMessageSpeech(m.id, m.content) : undefined
+            }
+            onStopSpeech={onStopMessageSpeech}
           />
         ))}
 

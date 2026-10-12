@@ -98,3 +98,22 @@ export function MicIcon({ size = 16, color = '#38BDF8' }: { size?: number; color
     </View>
   );
 }
+
+export function SpeakerIcon({ size = 15, color = '#38BDF8' }: { size?: number; color?: string }) {
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '700', lineHeight: size + 2 }}>🔊</Text>
+  );
+}
+
+export function PlayIcon({ size = 13, color = '#38BDF8' }: { size?: number; color?: string }) {
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '900', lineHeight: size + 2 }}>▶</Text>
+  );
+}
+
+export function StopIcon({ size = 13, color = '#EF4444' }: { size?: number; color?: string }) {
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '900', lineHeight: size + 2 }}>■</Text>
+  );
+}
+

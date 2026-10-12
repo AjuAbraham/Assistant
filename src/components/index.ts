@@ -10,3 +10,4 @@ export * from './ModelCard';
 export * from './SpeechModelCard';
 export * from './BottomNav';
 export * from './voice';
+export * from './VoiceStudio';

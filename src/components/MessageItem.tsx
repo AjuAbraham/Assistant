@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Share, Clipboard, StyleSheet } from 'reac
 import { THEME } from '../theme/tokens';
 import { Message } from '../types';
 import { MessageContentRenderer } from './common/MessageContentRenderer';
-import { CopyIcon, CheckIcon } from './common/Icons';
+import { CopyIcon, CheckIcon, SpeakerIcon, StopIcon } from './common/Icons';
 
 interface MessageItemProps {
   message: Message;
@@ -11,6 +11,10 @@ interface MessageItemProps {
   copied: boolean;
   onCopy: () => void;
   onToggleMetrics: () => void;
+  isPlayingAudio?: boolean;
+  isSynthesizingAudio?: boolean;
+  onPlaySpeech?: () => void;
+  onStopSpeech?: () => void;
 }
 
 export function MessageItem({
@@ -19,6 +23,10 @@ export function MessageItem({
   copied,
   onCopy,
   onToggleMetrics,
+  isPlayingAudio = false,
+  isSynthesizingAudio = false,
+  onPlaySpeech,
+  onStopSpeech,
 }: MessageItemProps) {
   const isUser = message.role === 'user';
 
@@ -60,6 +68,26 @@ export function MessageItem({
             accessibilityLabel="Share message"
           >
             <Text style={styles.ghostIconGlyph}>↗</Text>
+          </TouchableOpacity>
+        )}
+
+        {!isUser && (onPlaySpeech || onStopSpeech) && (
+          <TouchableOpacity
+            style={[
+              styles.ghostIconBtn,
+              (isPlayingAudio || isSynthesizingAudio) && styles.ghostIconBtnActiveSpeech,
+            ]}
+            onPress={isPlayingAudio || isSynthesizingAudio ? onStopSpeech : onPlaySpeech}
+            activeOpacity={0.6}
+            accessibilityLabel={isPlayingAudio ? 'Stop speaking' : 'Speak message aloud'}
+          >
+            {isSynthesizingAudio ? (
+              <Text style={styles.ghostIconGlyph}>⏳</Text>
+            ) : isPlayingAudio ? (
+              <StopIcon size={12} color="#EF4444" />
+            ) : (
+              <SpeakerIcon size={14} color={THEME.colors.textTertiary} />
+            )}
           </TouchableOpacity>
         )}
 
@@ -182,6 +210,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 15,
+  },
+  ghostIconBtnActiveSpeech: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
   ghostIconGlyph: {
     color: THEME.colors.textTertiary,

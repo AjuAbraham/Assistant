@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { THEME } from '../theme/tokens';
-import { LLMConfig } from '../types';
+import { LLMConfig, ModelState } from '../types';
+import { KokoroVoiceMetadata } from '../constants/tts';
+import { VoiceStudio } from '../components/VoiceStudio';
 
 interface SettingsScreenProps {
   temperature: number;
@@ -13,6 +15,19 @@ interface SettingsScreenProps {
   onResetSystemPrompt: () => void;
   isModelReady: boolean;
   selectedModel: LLMConfig;
+  selectedVoiceId: string;
+  onSelectVoice: (voiceId: string) => void;
+  speechSpeed: number;
+  onSelectSpeed: (speed: number) => void;
+  autoPlay: boolean;
+  onToggleAutoPlay: (val: boolean) => void;
+  ttsModelState: ModelState;
+  onDownloadTtsModel: () => void;
+  onDeleteTtsModel: () => void;
+  previewingVoiceId: string | null;
+  isPreviewSynthesizing: boolean;
+  onPreviewVoice: (voice: KokoroVoiceMetadata) => void;
+  onStopPreview: () => void;
 }
 
 export function SettingsScreen({
@@ -25,6 +40,19 @@ export function SettingsScreen({
   onResetSystemPrompt,
   isModelReady,
   selectedModel,
+  selectedVoiceId,
+  onSelectVoice,
+  speechSpeed,
+  onSelectSpeed,
+  autoPlay,
+  onToggleAutoPlay,
+  ttsModelState,
+  onDownloadTtsModel,
+  onDeleteTtsModel,
+  previewingVoiceId,
+  isPreviewSynthesizing,
+  onPreviewVoice,
+  onStopPreview,
 }: SettingsScreenProps) {
   return (
     <View style={styles.tabContentContainer}>
@@ -121,6 +149,23 @@ export function SettingsScreen({
           />
         </View>
 
+        {/* VOICE STUDIO (PHASE 3) */}
+        <VoiceStudio
+          selectedVoiceId={selectedVoiceId}
+          onSelectVoice={onSelectVoice}
+          speechSpeed={speechSpeed}
+          onSelectSpeed={onSelectSpeed}
+          autoPlay={autoPlay}
+          onToggleAutoPlay={onToggleAutoPlay}
+          ttsModelState={ttsModelState}
+          onDownloadModel={onDownloadTtsModel}
+          onDeleteModel={onDeleteTtsModel}
+          previewingVoiceId={previewingVoiceId}
+          isPreviewSynthesizing={isPreviewSynthesizing}
+          onPreviewVoice={onPreviewVoice}
+          onStopPreview={onStopPreview}
+        />
+
         <Text style={styles.sectionHeaderTitle}>PRIVACY & SYSTEM DIAGNOSTICS</Text>
         <View style={styles.settingsCard}>
           <View style={styles.privacyRow}>
@@ -142,6 +187,14 @@ export function SettingsScreen({
           <View style={styles.diagRow}>
             <Text style={styles.diagLabel}>Inference Runtime</Text>
             <Text style={styles.diagVal}>llama.cpp ARM64</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Speech Recognition</Text>
+            <Text style={styles.diagVal}>Whisper (whisper.rn)</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Speech Synthesis</Text>
+            <Text style={styles.diagVal}>Kokoro-82M (Sherpa-ONNX)</Text>
           </View>
           <View style={styles.diagRow}>
             <Text style={styles.diagLabel}>Active Model</Text>
